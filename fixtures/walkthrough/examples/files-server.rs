@@ -1,10 +1,13 @@
-//! KC4 browser proof with People mounted, using a fixture-only company port.
+//! KC4 browser proof in the connector-only composition, using a fixture-only directory module.
 //! DATABASE_URL=... BIND_ADDR=127.0.0.1:3484 APP_ORIGIN=http://localhost:3484 cargo run -p bilibi-people-connector-walkthrough --example files-server
-use bilibi_module_registry::{Contribution, Provenance};
+use bilibi_module_registry::{Contribution, Layer, Module, Provenance};
 use bilibi_people_connector_connector::DIRECTORY_PORT;
 use bilibi_people_connector_walkthrough::FileCompanyPort;
 use bilibi_ports::{Port, PORTS};
 inventory::submit! {Contribution::new(PORTS,DIRECTORY_PORT,Provenance{module:"people/workforce",source:file!(),line:line!()},&Port{provider:&FileCompanyPort})}
+// This descriptor exists only in the fixture executable. The product never
+// contributes a People module or port, and composes without either.
+inventory::submit! {Module{id:"people/workforce",layer:Layer::Domains,dependencies:&["base/ports"],migrations:&[],services:&[]}}
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = bilibi_database::pool(&std::env::var("DATABASE_URL")?)?;
