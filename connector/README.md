@@ -2,12 +2,11 @@
 
 `people_connector/connector` owns the integration contracts, each company's
 provider connection, directory synchronisation into Connector-owned
-projections, private directory file exchange, and backup and recovery. Inbound notifications and
-operations follow in later slices. This README is the owner contract; the Bilimbi
-source it ports is
-[`connector/docs/README.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/main/connector/docs/README.md).
+projections, signed inbound notifications, private directory file exchange, and backup and recovery. Operations follow in a later slice. This README is the owner contract; the Bilimbi source it ports is [`connector/docs/README.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/main/connector/docs/README.md).
 
-Connections, synchronisation and file exchange are available through `Connector`. The Files page is at `/integrations/people/files`. The Backups page is at `/integrations/people/backups`. The connections page (KC2), inbound notifications (KC3), and operations (KC5) follow separately.
+Connections, synchronisation, signed inbound notifications, file exchange, and backups are available through `Connector`. The Files page is at `/integrations/people/files` and the Backups page at `/integrations/people/backups`. The connections page (KC2) and operations (KC5) follow separately.
+
+The [native notification contract](webhooks.md) describes `POST /webhooks/people-native`, the manager-only policy API and replay rules. Bilibi keeps the three company webhook policy values on its connection row, with the secret encrypted through `Settings::seal_owned`, because an inbound machine has no login scope. The Bilimbi `people-connector.webhook.*` Settings keys are not used or registered. The sender only verifies and records a receipt; it never reads the People directory or enqueues synchronisation.
 
 ## Contracts
 
@@ -271,7 +270,7 @@ A backup can be restored once. Repeating the exact actor/token request returns t
 
 Recovery calls the ordinary sync engine with the restored connection identity, expected generation, and `recovery:<backup UUID>` key. A repeated recovery returns its recorded run. If another sync advanced the generation before recovery started, use normal synchronisation on People connections. A recorded unsuccessful outcome is shown as incomplete recovery.
 
-Webhook definitions can land independently in KC3. Snapshots capture those non-secret keys when registered. Restore clears the webhook secret and disables intake whenever those definitions are present, including for backups created before KC3 was installed.
+Snapshots keep the webhook signing window and intake flag under their original contract names in the JSON settings object. Their live values come from the connection-owned webhook policy described in [webhooks.md](webhooks.md). Restore clears its owner-encrypted secret, disables intake, and restores the signing window in the same transaction. Older backups without webhook policy restore the default signing window and keep intake disabled.
 
 ### Clean expired backups
 

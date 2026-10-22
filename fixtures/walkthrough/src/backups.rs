@@ -388,6 +388,18 @@ pub async fn backup_walkthrough() -> Result<()> {
         )
         .await?;
     tx.commit().await?;
+    let webhook_secret = format!("webhook-{secret}{secret}");
+    connector
+        .put_webhook_settings(
+            &manager,
+            1,
+            WebhookSettingsUpdate {
+                enabled: Some(true),
+                secret: Some(webhook_secret.clone()),
+                max_skew_seconds: Some(600),
+            },
+        )
+        .await?;
     let receipt = backup.create(&manager, 1).await?;
     require(
         receipt.expires_at.parse::<jiff::Timestamp>()?.as_second()
@@ -412,6 +424,23 @@ pub async fn backup_walkthrough() -> Result<()> {
         !String::from_utf8_lossy(&bytes).contains(&secret),
         "snapshot contains no stored credential bytes",
     )?;
+    require(
+        !String::from_utf8_lossy(&bytes).contains(&webhook_secret)
+            && saved["connection"].get("webhook_secret").is_none()
+            && saved["settings"]["people-connector.webhook.max_skew_seconds"] == 600
+            && saved["settings"]["people-connector.webhook.enabled"] == true,
+        "snapshot contains only non-secret webhook policy",
+    )?;
+    connector
+        .put_webhook_settings(
+            &manager,
+            1,
+            WebhookSettingsUpdate {
+                max_skew_seconds: Some(900),
+                ..Default::default()
+            },
+        )
+        .await?;
 
     client.execute("UPDATE people_connector_workforce_records SET name='Changed after backup',active=false WHERE tenant_id=1 AND kind='employee'",&[]).await?;
     let preview = backup.preview(&manager, 1, &receipt.id).await?;
@@ -511,6 +540,11 @@ pub async fn backup_walkthrough() -> Result<()> {
     require(
         !connector.status(&manager, 1).await?.credential_stored,
         "restore clears the excluded stored credential",
+    )?;
+    let webhook = connector.webhook_summary(&manager, 1).await?;
+    require(
+        !webhook.enabled && !webhook.secret_stored && webhook.max_skew_seconds == 600,
+        "restore clears webhook secret, disables intake and restores signing window",
     )?;
 
     require(

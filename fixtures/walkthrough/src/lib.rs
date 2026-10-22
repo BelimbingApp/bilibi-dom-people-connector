@@ -353,3 +353,8 @@ pub use files::{file_walkthrough, FileCompanyPort};
 // KC6: connection backup and recovery proof, independent of product catalogs.
 mod backups;
 pub use backups::{backup_walkthrough, BackupCompanyPort, BackupDirectory};
+
+// KC3: an independent signed-receipt proof on a disposable database.
+#[path = "webhooks.rs"]
+mod webhook_proof;
+pub use webhook_proof::run as run_webhooks;

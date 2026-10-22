@@ -46,7 +46,7 @@ inventory::submit! {
         id: MODULE,
         layer: Layer::Domains,
         dependencies: &[
-            "base/artifacts", "base/audit", "base/authz", "base/database", "base/datetime", "base/locale", "base/ui", "base/menu", "base/module_registry", "base/party_ids",
+            "base/artifacts", "base/audit", "base/authz", "base/database", "base/datetime", "base/integration", "base/locale", "base/ui", "base/menu", "base/module_registry", "base/party_ids",
             "base/ports", "base/settings", "base/system", "base/tenancy", "core/company",
         ],
         migrations: &[(
@@ -55,6 +55,9 @@ inventory::submit! {
         ), (
             "people-connector-connector-002-sync",
             include_str!("../migrations/002-sync.sql"),
+        ), (
+            "people-connector-connector-003-webhooks",
+            include_str!("../migrations/003-webhooks.sql"),
         ), (
             "people-connector-connector-004-file-exchanges",
             include_str!("../migrations/004-file-exchanges.sql"),
@@ -74,8 +77,26 @@ inventory::submit! {
                     services.get::<Ports>(bilibi_ports::SERVICE)?,
                 )?))
             },
+        }, Service {
+            id: crate::WEBHOOK_SERVICE,
+            factory: |services| Ok(Arc::new(bilibi_integration::webhooks::WebhookService(
+                services.get::<Connector>(SERVICE)?,
+            ))),
         }, Service {id:crate::backups_web::PAGE_ID,factory:crate::backups_web::pages_service}, Service {id:crate::files_web::PAGE_ID,factory:crate::files_web::pages_service}, Service {id:crate::files_web::DOWNLOAD_ID,factory:crate::files_web::download_service}],
     }
+}
+
+// Bilimbi Connector's descriptor-owned `people-native` inbound registration.
+inventory::submit! {
+    Contribution::new(bilibi_integration::webhooks::WEBHOOKS, "people_connector/connector.native", provenance!(),
+        &bilibi_integration::webhooks::Webhook { identifier: crate::WEBHOOK_IDENTIFIER, service: crate::WEBHOOK_SERVICE })
+}
+
+// The policy is owner-encrypted on the connection row. Keep ciphertext out of
+// every audit path too, including future changes that capture a whole row.
+inventory::submit! {
+    Contribution::new(bilibi_audit::REDACTIONS, "people_connector/connector.webhook-secret", provenance!(),
+        &bilibi_audit::Redaction { kind: "people_connector_connection", fields: &["webhook_secret"] })
 }
 
 // The Authz domain is `people-connector` ("People integrations"), as Bilimbi

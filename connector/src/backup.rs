@@ -343,25 +343,24 @@ impl Backup<'_> {
                     b["stable_id"].as_str(),
                 ))
         });
-        // KC3 may land independently. Capture registered non-secret policies only;
-        // restore always disables intake once its definition exists.
-        let keys: Vec<&str> = SETTING_KEYS
-            .into_iter()
-            .filter(|key| self.connector.settings.definitions().lookup(key).is_ok())
-            .collect();
-        let settings = self
+        // Preserve Bilimbi's JSON policy names while reading KC3's connection-owned policy.
+        let keys = &SETTING_KEYS[..8];
+        let mut settings = self
             .connector
             .settings
             .resolve_many(
                 client,
                 scope,
                 Target::Company(OrganisationId::new(c.platform_company_id)?),
-                &keys,
+                keys,
             )
             .await?
             .into_iter()
             .map(|(k, v)| (k, v.value))
             .collect::<serde_json::Map<_, _>>();
+        let (enabled, skew) = crate::webhook_store::nonsecret_policy(client, c).await?;
+        settings.insert(SETTING_KEYS[8].into(), json!(skew));
+        settings.insert(SETTING_KEYS[9].into(), json!(enabled));
         let snapshot = json!({"format":"people-connection-backup-v1","tenant_id":c.tenant_id,"platform_company_id":c.platform_company_id,"connection_id":c.id,"connection":connection,"checkpoint":checkpoint,"projections":projections,"settings":settings});
         if snapshot.to_string().len() as u64 > max {
             return Err(ConnectorError::InvalidBackup);
@@ -520,6 +519,13 @@ impl Backup<'_> {
         {
             return Err(ConnectorError::InvalidBackup);
         }
+        if keys
+            .get(SETTING_KEYS[8])
+            .is_some_and(|v| v.as_i64().is_none_or(|n| !(1..=86400).contains(&n)))
+            || keys.get(SETTING_KEYS[9]).is_some_and(|v| !v.is_boolean())
+        {
+            return Err(ConnectorError::InvalidBackup);
+        }
         // Validate every record before mutate so a refusal never poisons a transaction.
         let mut identities = BTreeSet::new();
         for raw in saved["projections"].as_array().unwrap() {
@@ -656,36 +662,16 @@ impl Backup<'_> {
                 .settings
                 .delete(&mut tx, scope, target, CREDENTIAL_KEY)
                 .await?;
-            if self
-                .connector
-                .settings
-                .definitions()
-                .lookup("people-connector.webhook.secret")
-                .is_ok()
-            {
-                self.connector
-                    .settings
-                    .delete(&mut tx, scope, target, "people-connector.webhook.secret")
-                    .await?;
-            }
-            if self
-                .connector
-                .settings
-                .definitions()
-                .lookup("people-connector.webhook.enabled")
-                .is_ok()
-            {
-                self.connector
-                    .settings
-                    .put(
-                        &mut tx,
-                        scope,
-                        target,
-                        "people-connector.webhook.enabled",
-                        json!(false),
-                    )
-                    .await?;
-            }
+            let webhook_before = crate::webhook_store::policy(tx.sql(), &c).await?;
+            let skew = saved["settings"][SETTING_KEYS[8]]
+                .as_i64()
+                .unwrap_or(i64::from(crate::webhook_store::DEFAULT_SKEW_SECONDS));
+            let webhook_after = crate::webhook_store::Policy {
+                secret: None,
+                enabled: false,
+                max_skew_seconds: i32::try_from(skew).map_err(|_| ConnectorError::InvalidBackup)?,
+            };
+            crate::webhook_store::save_policy(&mut tx, &c, webhook_before, webhook_after).await?;
             let enabled = saved["connection"]["enabled"].as_bool().unwrap();
             connections::set_enabled(&mut tx, c.clone(), enabled).await?;
             sync_store::reset(&mut tx, &c).await?;
