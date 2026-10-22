@@ -230,6 +230,8 @@ impl Backup<'_> {
         company: i64,
         policy: BackupPolicyUpdate,
     ) -> Result<BackupPolicy> {
+        let mut client = self.connector.db.get().await.map_err(Error::from)?;
+        authorize(&**client, scope, company).await?;
         if policy
             .retention_days
             .is_some_and(|n| !(1..=3650).contains(&n))
@@ -239,8 +241,6 @@ impl Backup<'_> {
         {
             return Err(ConnectorError::InvalidBackupPolicy);
         }
-        let mut client = self.connector.db.get().await.map_err(Error::from)?;
-        authorize(&**client, scope, company).await?;
         let mut tx = self
             .connector
             .begin(&mut client, scope, "people-connector.backup.policy")
@@ -406,6 +406,8 @@ impl Backup<'_> {
         {
             Ok(v) => v,
             Err(e) => {
+                // Return this pool slot before failure bookkeeping acquires one.
+                drop(client);
                 self.fail(scope, company, &id).await?;
                 return Err(e.into());
             }
@@ -443,6 +445,8 @@ impl Backup<'_> {
             let stored = store::fetch(&**client, scope.tenant(), company, &id, false).await?;
             if stored["artifact_id"] != artifact.id {
                 documents.delete(&mut client, &artifact.id).await?;
+                // Return this pool slot before failure bookkeeping acquires one.
+                drop(client);
                 self.fail(scope, company, &id).await?;
             }
         }

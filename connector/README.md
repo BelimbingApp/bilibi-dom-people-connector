@@ -263,7 +263,7 @@ The page edits both settings inline. A backup keeps the expiry set when it was c
 3. Re-enter any required secrets on People connections. Restore clears credentials and webhook signing secrets, and disables webhook intake.
 4. Choose **Sync from checkpoint**. A disabled connection must be enabled first.
 
-The preview token stays on the server. Its stored hash binds it to the account, impersonator, current connection state, and preview expiry. A new preview invalidates the previous token. Restore checks authorization, the active company, mapping, bytes, idle sync state, token, and reviewed state again under the company and connection locks.
+The restore preview names the current installation through the shared Instance banner. The preview token stays on the server. Its stored hash binds it to the account, impersonator, current connection state, and preview expiry. A new preview invalidates the previous token. Restore checks authorization, the active company, mapping, bytes, idle sync state, token, and reviewed state again under the company and connection locks.
 
 **Restore replaces configuration, directory records, and checkpoint atomically.** Every changed row goes through MutationBoundary. An audit failure rolls back the complete replacement. Sync outcomes, issues, replay guards, and audit history remain. The checkpoint generation advances past both the saved and current generation. A backup taken before the first sync restores a `bootstrap_required` checkpoint marker so its generation still fences recovery while the next pass performs a bootstrap read.
 

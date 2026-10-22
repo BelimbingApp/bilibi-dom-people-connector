@@ -44,6 +44,7 @@ struct Pages {
     db: Db,
     display: Arc<DisplayPolicy>,
     locales: Arc<bilibi_locale::Locales>,
+    settings: Arc<bilibi_settings::Settings>,
 }
 impl Pages {
     fn new(services: &Services) -> bilibi_module_registry::Result<Self> {
@@ -52,6 +53,7 @@ impl Pages {
             db: services.get::<Db>("base/database.pool")?.as_ref().clone(),
             display: services.get("base/datetime.display")?,
             locales: services.get("base/locale.locales")?,
+            settings: services.get("base/settings.store")?,
         })
     }
 }
@@ -69,6 +71,7 @@ struct State {
     flash: Option<(String, StatusKind)>,
     display: DisplayContext,
     commits: CommitStates,
+    instance_banner: Html,
 }
 fn columns(id: &str, fields: &[(&str, &str)]) -> Result<ListColumns> {
     ListColumns::mount(
@@ -122,6 +125,7 @@ impl State {
             flash: None,
             display: DisplayContext::anonymous(),
             commits: CommitStates::default(),
+            instance_banner: Html::EMPTY,
         };
         state.select(scope, query).await?;
         Ok(state)
@@ -138,6 +142,10 @@ impl State {
         } else {
             self.companies.first().map(|c| c.id.get())
         };
+        self.instance_banner = bilibi_system::Instance::resolve(&self.pages.settings, &**client)
+            .await?
+            .banner("people-backups-instance", "mb-3")
+            .map_err(|_| Error::Internal)?;
         let locale = self
             .pages
             .locales
@@ -233,6 +241,13 @@ impl State {
                 StatusKind::Error,
             ));
             return Ok(());
+        }
+        if matches!(event, "preview" | "request_restore") {
+            self.instance_banner =
+                bilibi_system::Instance::resolve(&self.pages.settings, &**client)
+                    .await?
+                    .banner("people-backups-instance", "mb-3")
+                    .map_err(|_| Error::Internal)?;
         }
         drop(client);
         let values = params::string_values(payload);
@@ -444,6 +459,7 @@ impl State {
             })?;
             body.push(&Html::text("Backups exclude secrets. Retention is capped by the installation's private artifact retention; configure storage in Operator Settings."));
             content.push(&render(Card {
+                class: "mt-5",
                 title: "Backup policy",
                 body,
                 ..Default::default()
@@ -520,6 +536,7 @@ impl State {
                 None,
             )?);
             content.push(&render(Card {
+                class: "mt-5",
                 body,
                 ..Default::default()
             })?);
@@ -553,6 +570,7 @@ impl State {
                 )?;
                 body.push(&Html::text("Cleanup stopped after repeated failures. Review private storage in Operator Settings, then retry."));
                 content.push(&render(Card {
+                    class: "mt-5",
                     title: "Held cleanup",
                     body,
                     ..Default::default()
@@ -584,14 +602,15 @@ impl State {
                             )
                     })
                     .collect();
-                let mut body = self.table(
+                let mut body = self.instance_banner.clone();
+                body.push(&self.table(
                     "people-backups-preview",
                     &self.changes,
                     rows,
                     "Changes on restore",
                     "No changes.",
                     false,
-                )?;
+                )?);
                 body.push(&Html::text("Directory contents and checkpoint cursor will be replaced. The checkpoint generation advances. Sync outcomes, reconciliation, audit history and webhook replay guards remain."));
                 body.push(&button(
                     "people-backups-request-restore",
@@ -601,6 +620,7 @@ impl State {
                     None,
                 )?);
                 content.push(&render(Card {
+                    class: "mt-5",
                     title: "Restore preview",
                     body,
                     ..Default::default()

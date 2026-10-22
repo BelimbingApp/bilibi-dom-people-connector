@@ -47,7 +47,7 @@ inventory::submit! {
         layer: Layer::Domains,
         dependencies: &[
             "base/artifacts", "base/audit", "base/authz", "base/database", "base/datetime", "base/locale", "base/ui", "base/menu", "base/module_registry", "base/party_ids",
-            "base/ports", "base/settings", "base/tenancy", "core/company",
+            "base/ports", "base/settings", "base/system", "base/tenancy", "core/company",
         ],
         migrations: &[(
             "people-connector-connector-001-connections",
