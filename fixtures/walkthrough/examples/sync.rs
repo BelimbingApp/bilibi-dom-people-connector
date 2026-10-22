@@ -208,9 +208,19 @@ async fn pass(c: &Connector, s: &Scope, key: &str, mode: usize) -> Result<SyncRu
 #[tokio::main]
 async fn main() -> Result<()> {
     let url = std::env::var("DATABASE_URL").map_err(|_| Error::Invalid)?;
-    bilibi_people_connector_walkthrough::run(&url).await?;
+    bilibi_base::link();
+    bilibi_core::link();
+    bilibi_domains::link();
+    bilibi_extensions::link();
     let db = bilibi_database::pool(&url)?;
     let modules = bilibi_module_registry::discover()?;
+    bilibi_module_registry::verify_composition(
+        &modules,
+        bilibi_domains::MODULES,
+        bilibi_extensions::MODULES,
+    )?;
+    bilibi_database::migrate(&db, &modules).await?;
+    bilibi_walkthrough_fixture::install(&db).await?;
     let mut services = Services::default();
     services.provide("bootstrap.database", Arc::new(db.clone()))?;
     services.provide("bootstrap.composition", Arc::new(bilibi_web::composition()))?;
