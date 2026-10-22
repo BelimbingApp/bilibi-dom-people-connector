@@ -7,9 +7,9 @@ operations and backups. This README is the owner contract; the Bilimbi
 source it ports is
 [`connector/docs/README.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/main/connector/docs/README.md).
 
-Connections and synchronisation are available through `Connector`. The connections page (KC2), inbound notifications (KC3), file exchange (KC4), operations (KC5) and backups (KC6) follow separately.
+Connections, synchronisation and signed inbound notifications are available through `Connector`. The connections page (KC2), file exchange (KC4), operations (KC5) and backups (KC6) follow separately.
 
-The proposed [native notification contract](webhooks.md) records KC3's signing and replay rules and the missing machine-read APIs. Intake is not implemented yet.
+The [native notification contract](webhooks.md) describes `POST /webhooks/people-native`, the manager-only policy API and replay rules. Bilibi keeps the three company webhook policy values on its connection row, with the secret encrypted through `Settings::seal_owned`, because an inbound machine has no login scope. The Bilimbi `people-connector.webhook.*` Settings keys are not used or registered. The sender only verifies and records a receipt; it never reads the People directory or enqueues synchronisation.
 
 ## Contracts
 

@@ -89,6 +89,23 @@ pub(crate) async fn save(
 async fn delete_all(tx: &mut MutationTransaction<'_>, table: Table, c: &Connection) -> Result<()> {
     let tenant = c.tenant_id;
     let id = c.id;
+    // An unsynchronised connection has no projection rows. A mutate with no
+    // Changes poisons the transaction, so decide this no-op before mutating.
+    if tx
+        .sql()
+        .query_opt(
+            &format!(
+                "SELECT 1 FROM {} WHERE tenant_id=$1 AND connection_id=$2 LIMIT 1",
+                table.name()
+            ),
+            &[&tenant, &id],
+        )
+        .await
+        .map_err(Error::from)?
+        .is_none()
+    {
+        return Ok(());
+    }
     tx.mutate(move |sql| Box::pin(async move {
         let rows = sql.query(&format!("DELETE FROM {} t WHERE tenant_id=$1 AND connection_id=$2 RETURNING to_jsonb(t)",table.name()),&[&tenant,&id]).await?;
         let changes = rows.into_iter().map(|r| {

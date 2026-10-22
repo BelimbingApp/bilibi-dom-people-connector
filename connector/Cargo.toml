@@ -10,9 +10,11 @@ license.workspace = true
 publish = false
 
 [dependencies]
+bilibi-audit.workspace = true
 bilibi-authz.workspace = true
 bilibi-company.workspace = true
 bilibi-database.workspace = true
+bilibi-integration.workspace = true
 bilibi-menu.workspace = true
 bilibi-module-registry.workspace = true
 bilibi-party-ids.workspace = true
@@ -20,6 +22,8 @@ bilibi-ports.workspace = true
 bilibi-settings.workspace = true
 bilibi-tenancy.workspace = true
 inventory.workspace = true
+data-encoding.workspace = true
+hmac.workspace = true
 jiff = "0.2.38"
 serde.workspace = true
 serde_json.workspace = true
@@ -27,6 +31,7 @@ sha2.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
 tokio-postgres.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 # Cargo makes a member of every path dependency of a member, dev-dependencies
