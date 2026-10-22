@@ -398,6 +398,82 @@ pub async fn file_walkthrough() -> Result<()> {
         connector.import_file(&manager, 1, &trailing).await.is_err(),
         "trailing JSON refused",
     )?;
+    connector
+        .put_file_policy(
+            &manager,
+            1,
+            FilePolicy {
+                json_enabled: false,
+                ..policy
+            },
+        )
+        .await?;
+    require(
+        matches!(
+            connector.import_file(&manager, 1, &bytes).await,
+            Err(ConnectorError::FileExchangeDisabled)
+        ),
+        "disabled directory format refuses imports",
+    )?;
+    connector.put_file_policy(&manager, 1, policy).await?;
+    let mut storage_bytes = serde_json::to_vec(&empty)?;
+    storage_bytes.extend_from_slice(b"\n\n");
+    let mut tx = boundary
+        .begin(
+            &mut client,
+            admin.mutation_context("files.fixture.storage_outage"),
+        )
+        .await?;
+    settings
+        .put(
+            &mut tx,
+            &admin,
+            bilibi_base::settings::Target::Global,
+            "artifacts.storage_root",
+            json!(format!("{root}/missing")),
+        )
+        .await?;
+    tx.commit().await?;
+    require(
+        connector
+            .import_file(&manager, 1, &storage_bytes)
+            .await
+            .is_err(),
+        "private storage outage refuses publication",
+    )?;
+    let failed_id = connector
+        .file_summary(&manager, 1)
+        .await?
+        .records
+        .into_iter()
+        .find(|r| r.state == "failed")
+        .ok_or("missing failed storage receipt")?
+        .id;
+    let mut tx = boundary
+        .begin(
+            &mut client,
+            admin.mutation_context("files.fixture.storage_restored"),
+        )
+        .await?;
+    settings
+        .put(
+            &mut tx,
+            &admin,
+            bilibi_base::settings::Target::Global,
+            "artifacts.storage_root",
+            json!(root),
+        )
+        .await?;
+    tx.commit().await?;
+    require(
+        connector
+            .import_file(&manager, 1, &storage_bytes)
+            .await?
+            .receipt
+            .id
+            == failed_id,
+        "restored storage retries the original failed receipt",
+    )?;
     // Disposable fixture clock and lifecycle injection; product writes always use the boundary.
     client.execute("UPDATE people_connector_file_exchanges SET expires_at=clock_timestamp()-interval '1 second' WHERE tenant_id=1 AND id=$1::text::uuid",&[&imported.receipt.id]).await?;
     require(
@@ -479,6 +555,11 @@ pub async fn file_walkthrough() -> Result<()> {
     require(
         !summary.records.is_empty(),
         "receipt history survives connection removal and cleanup",
+    )?;
+    let stale_actions:i64=client.query_one("SELECT count(*) FROM base_audit_actions WHERE tenant_id=1 AND event='people-connector.files.stale'",&[]).await?.get(0);
+    require(
+        stale_actions > 0,
+        "abandonment writes the fixed stale audit action",
     )?;
     // Leave one ready directory document for browser download/upload interaction.
     connector

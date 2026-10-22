@@ -18,8 +18,8 @@ use bilibi_ui::{
         PageFuture, PageRequest, PageService,
     },
     params, BuiltinColumn, Cell, Choice, ConfirmDialog, EmptyState, Field, FlashMap, FlexRow,
-    FlexTable, Form, Html, InputKind, Instant, ListColumns, ListSpec, ListState, TableEmpty,
-    UploadSpec, Uploads,
+    FlexTable, Form, Html, InputKind, Instant, ListColumns, ListSpec, ListState, StatusKind,
+    TableEmpty, UploadSpec, Uploads,
 };
 use std::{collections::HashMap, sync::Arc};
 const PAGE_SERVICE: &str = "people_connector/connector.files_pages";
@@ -74,9 +74,8 @@ struct State {
     pending_purge: bool,
     columns: ListColumns,
     list: ListState,
-    flash: Option<(String, bool)>,
+    flash: Option<(String, StatusKind)>,
     private_settings: bool,
-    replayed: bool,
     display: DisplayContext,
 }
 impl State {
@@ -107,7 +106,6 @@ impl State {
             list,
             flash: None,
             private_settings: false,
-            replayed: false,
             display: DisplayContext::anonymous(),
         };
         state.select(scope, query).await?;
@@ -158,8 +156,7 @@ impl State {
         };
     }
     fn outcome<T>(&mut self, result: crate::Result<T>, message: &str) {
-        self.replayed = false;
-        self.flash=Some(match result{Ok(_)=>(message.to_owned(),true),Err(_)=>("File exchange refused. Check the connection, file policy and private storage settings.".into(),false)});
+        self.flash=Some(match result{Ok(_)=>(message.to_owned(),StatusKind::Success),Err(_)=>("File exchange refused. Check the connection, file policy and private storage settings.".into(),StatusKind::Error)});
     }
     async fn event(&mut self, scope: &Scope, payload: &serde_json::Value) -> Result<()> {
         let event = payload["type"].as_str().unwrap_or("");
@@ -183,7 +180,10 @@ impl State {
             return Ok(());
         }
         let Some(company) = self.company else {
-            self.flash = Some(("No company is available for file exchange.".into(), false));
+            self.flash = Some((
+                "No company is available for file exchange.".into(),
+                StatusKind::Error,
+            ));
             return Ok(());
         };
         // Recheck every write-shaped event, including opening the confirmation.
@@ -191,7 +191,7 @@ impl State {
             let client = self.pages.db.get().await.map_err(Error::from)?;
             if crate::authorize(&**client, scope, company).await.is_err() {
                 self.pending_purge = false;
-                self.flash=Some(("You cannot change connections for this company. Ask an administrator for access.".into(),false));
+                self.flash=Some(("You cannot change connections for this company. Ask an administrator for access.".into(),StatusKind::Error));
                 return Ok(());
             }
         }
@@ -202,7 +202,7 @@ impl State {
                     values
                         .get(key)
                         .and_then(|v| v.parse().ok())
-                        .ok_or(crate::ConnectorError::InvalidFile)
+                        .ok_or(crate::ConnectorError::InvalidFilePolicy)
                 };
                 let policy = (|| {
                     Ok(FilePolicy {
@@ -277,8 +277,7 @@ impl State {
     fn file_outcome(&mut self, result: crate::Result<crate::FileExchange>, message: &str) {
         match result {
             Ok(exchange) if exchange.replayed => {
-                self.replayed = true;
-                self.flash = Some(("This file is already recorded.".into(), true))
+                self.flash = Some(("This file is already recorded.".into(), StatusKind::Info))
             }
             result => self.outcome(result, message),
         }
@@ -457,13 +456,11 @@ impl State {
             Html::EMPTY
         };
         let mut flash = FlashMap::default();
-        if let Some((message, success)) = &self.flash {
-            if self.replayed {
-                flash.info = message;
-            } else if *success {
-                flash.success = message;
-            } else {
-                flash.error = message;
+        if let Some((message, kind)) = &self.flash {
+            match kind {
+                StatusKind::Success => flash.success = message,
+                StatusKind::Info => flash.info = message,
+                _ => flash.error = message,
             }
         }
         FilesView {
