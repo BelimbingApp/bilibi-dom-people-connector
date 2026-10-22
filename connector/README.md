@@ -139,6 +139,8 @@ answers a `Page` (entries, cursors, the watermark `as_of`, `Freshness`,
 `snapshot`) or a `ReadRefusal` whose fixed code is all the Connector records.
 `WritePort` is a neutral placeholder; no writer is activated.
 
+The Connector also supplies a `PortContext` for each read or write call. It carries the caller's database client (`PortClient`) and port directory (`Ports`). For example, the native adapter uses these to ask `people/workforce.directory` about a company on the same connection or transaction. Use this context for calls to People; adapters keep no global service handle or database pool.
+
 A mounted adapter module (the Connector cannot depend on it) contributes one
 `Adapter { provider_id, port }` under the `ADAPTERS` catalog
 (`people_connector/connector.adapters`) with `inventory`, keyed by the

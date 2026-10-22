@@ -41,8 +41,8 @@ pub mod contracts;
 mod people;
 
 pub use adapters::{
-    Adapter, Adapters, Freshness, Page, Pass, PortAuthorization, PortRequest, ReadFuture, ReadPort,
-    ReadRefusal, WriteFuture, WritePort, ADAPTERS,
+    Adapter, Adapters, Freshness, Page, Pass, PortAuthorization, PortContext, PortRequest,
+    ReadFuture, ReadPort, ReadRefusal, WriteFuture, WritePort, ADAPTERS,
 };
 pub use contracts::{
     Capability, ContractError, Credential, Direction, Provider, Providers, Registry,

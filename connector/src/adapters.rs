@@ -15,6 +15,7 @@
 use crate::contracts::Direction;
 use crate::MODULE;
 use bilibi_module_registry::{Catalog, Consumer, Entry, Module, RegistryError, Result};
+use bilibi_ports::{PortClient, Ports};
 use bilibi_tenancy::Scope;
 use jiff::Timestamp;
 use serde_json::Value;
@@ -128,12 +129,23 @@ impl ReadRefusal {
 pub type ReadFuture<'a> =
     Pin<Box<dyn Future<Output = std::result::Result<Page, ReadRefusal>> + Send + 'a>>;
 
+/// Services borrowed from the Connector for one adapter call. The native
+/// adapter calls the People directory through `ports` on `client`, preserving
+/// the caller's transaction without keeping a global service or database pool.
+#[derive(Clone, Copy)]
+pub struct PortContext<'a> {
+    pub client: PortClient<'a>,
+    pub ports: &'a Ports,
+}
+
 /// The neutral read port for directory synchronisation. The Connector calls it
 /// only with a [`PortAuthorization`] it issued; an adapter answers one
-/// [`Page`] per [`PortRequest`] or a [`ReadRefusal`].
+/// [`Page`] per [`PortRequest`] or a [`ReadRefusal`], using the caller's
+/// [`PortContext`] to reach People.
 pub trait ReadPort: Send + Sync {
     fn read<'a>(
         &'a self,
+        context: PortContext<'a>,
         authorization: &'a PortAuthorization<'a>,
         request: &'a PortRequest,
     ) -> ReadFuture<'a>;
@@ -146,6 +158,7 @@ pub type WriteFuture<'a> =
 pub trait WritePort: Send + Sync {
     fn write<'a>(
         &'a self,
+        context: PortContext<'a>,
         authorization: &'a PortAuthorization<'a>,
         request: &'a Value,
     ) -> WriteFuture<'a>;
