@@ -934,6 +934,19 @@ pub async fn run(url: &str) -> Outcome {
             conflict.http(port)? == 403,
             "running host refuses different bytes for a delivery key",
         )?;
+        let after_commit = Request::new(&secret);
+        let before = counts(&db).await?;
+        client.batch_execute("CREATE FUNCTION kc3_refuse_host_action() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.event='webhook.delivery' THEN RAISE EXCEPTION 'host audit unavailable'; END IF; RETURN NEW; END $$; CREATE TRIGGER kc3_refuse_host_action BEFORE INSERT ON base_audit_actions FOR EACH ROW EXECUTE FUNCTION kc3_refuse_host_action()").await?;
+        expect(
+            after_commit.http(port)? == 403 && counts(&db).await? == (before.0 + 1, before.1 + 1),
+            "host audit failure refuses HTTP after the module receipt commits",
+        )?;
+        client.batch_execute("DROP TRIGGER kc3_refuse_host_action ON base_audit_actions; DROP FUNCTION kc3_refuse_host_action()").await?;
+        expect(
+            after_commit.retry(&secret).http(port)? == 202
+                && counts(&db).await? == (before.0 + 2, before.1 + 1),
+            "a fresh-nonce retry deduplicates work committed before host audit failed",
+        )?;
     }
     expect(
         connector
