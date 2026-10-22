@@ -671,8 +671,18 @@ fn display(value: &Value) -> String {
     }
 }
 fn message_for(error: &ConnectorError) -> String {
-    match error{ConnectorError::Disconnected=>"Enable the native connection on People connections before recovery.".into(),ConnectorError::CheckpointMoved=>"The restored checkpoint was advanced by another sync. Use normal synchronisation on People connections.".into(),ConnectorError::SyncInProgress=>"A sync is running. Wait for its recorded outcome before backup or restore.".into(),ConnectorError::Unauthorized=>"Connection management permission is required for this company.".into(),ConnectorError::FileStorage(bilibi_artifacts::Error::Policy)=>"Configure private artifact storage in Operator Settings.".into(),e=>e.to_string()}
+    match error {
+        ConnectorError::Disconnected => "Enable the native connection on People connections before recovery.".into(),
+        ConnectorError::CheckpointMoved => "The restored checkpoint was advanced by another sync. Use normal synchronisation on People connections.".into(),
+        ConnectorError::SyncInProgress => "A sync is running. Wait for its recorded outcome before backup or restore.".into(),
+        ConnectorError::Unauthorized => "Connection management permission is required for this company.".into(),
+        ConnectorError::FileStorage(bilibi_artifacts::Error::Policy) => "Configure private artifact storage in Operator Settings.".into(),
+        ConnectorError::MappingChanged | ConnectorError::Unsupported => ConnectorError::ConnectionUnavailable.to_string(),
+        e @ (ConnectorError::PreviewChanged | ConnectorError::PreviewExpired | ConnectorError::ConnectionChanged | ConnectorError::ConnectionUnavailable | ConnectorError::BackupIntegrity | ConnectorError::BackupCleanupPending | ConnectorError::RestoreRequired | ConnectorError::PeopleUnavailable | ConnectorError::CompanyArchived) => e.to_string(),
+        _ => ConnectorError::InvalidBackup.to_string(),
+    }
 }
+
 fn render(template: impl Template) -> Result<Html> {
     Html::render(&template).map_err(|_| Error::Internal)
 }
