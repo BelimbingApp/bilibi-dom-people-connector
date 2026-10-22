@@ -106,6 +106,10 @@ impl ReadPort for Scripted {
                 snapshot: true,
             };
             if organisation {
+                if mode == 17 {
+                    page.freshness = Freshness::Stale(old);
+                    return Ok(page);
+                }
                 if mode == 4 {
                     page.freshness = Freshness::Unavailable("private provider detail".into());
                     return Ok(page);
@@ -117,7 +121,7 @@ impl ReadPort for Scripted {
                     }
                     return Ok(page);
                 }
-                if mode == 6 || mode == 8 {
+                if [2, 6, 8, 16].contains(&mode) {
                     return Ok(page);
                 }
                 page.entries = vec![
@@ -166,6 +170,12 @@ impl ReadPort for Scripted {
                 }
                 14 => {
                     page.freshness = Freshness::Unavailable("private provider detail".into());
+                }
+                19 => {
+                    page.entries[1]
+                        .as_object_mut()
+                        .expect("record")
+                        .remove("code");
                 }
                 16 => {
                     page.entries = vec![record("employee", "employee-1", now)];
@@ -265,7 +275,7 @@ async fn main() -> Result<()> {
         &catalog,
         &deployment,
         Registry::new().register(provider).expect("one provider"),
-        ports,
+        ports.clone(),
     )?);
     connector
         .configure_connection(&manager, 1, NATIVE_PROVIDER_ID)
@@ -349,6 +359,27 @@ async fn main() -> Result<()> {
             == before,
         "failed reads cannot move checkpoint",
     )?;
+    let org_stale = pass(&connector, &manager, "organisation-stale", 17).await?;
+    expect(
+        org_stale.state == RunState::Stale && org_stale.checkpoint_version.is_none(),
+        "a later stale organisation stream discards the earlier directory stream",
+    )?;
+    pass(&connector, &manager, "known-invalid", 19).await?;
+    expect(
+        connector
+            .workforce(&manager, 1)
+            .await
+            .map_err(|_| Error::Internal)?
+            .require_current()
+            .map_err(|_| Error::Internal)?
+            .iter()
+            .any(|r| r.stable_id == "employee-1"),
+        "refused known identity is protected from snapshot deactivation",
+    )?;
+    expect(
+        pass(&connector, &manager, "wrong-company", 16).await?.state == RunState::Refused,
+        "foreign workforce company is refused",
+    )?;
     expect(
         pass(&connector, &manager, "partial-refusal", 13)
             .await?
@@ -373,6 +404,35 @@ async fn main() -> Result<()> {
             .iter()
             .any(|i| i.kind == "organisation_unavailable"),
         "organisation absence opens issue",
+    )?;
+    let directory_only = Provider::new(
+        NATIVE_PROVIDER_ID,
+        "People (this installation)",
+        "1.0.0",
+        vec![Capability::new("employee_directory", Direction::Read).expect("known capability")],
+        Credential::None,
+    )
+    .expect("valid provider");
+    let directory_connector = Connector::from_catalog(
+        &services,
+        &catalog,
+        &deployment,
+        Registry::new()
+            .register(directory_only)
+            .expect("one provider"),
+        ports.clone(),
+    )?;
+    let undeclared = pass(&directory_connector, &manager, "undeclared-organisation", 0).await?;
+    expect(
+        undeclared.refused == 1
+            && directory_connector
+                .sync_summary(&manager, 1)
+                .await
+                .map_err(|_| Error::Internal)?
+                .open_issues
+                .iter()
+                .any(|i| i.kind == "organisation_unavailable"),
+        "undeclared company records are refused and existing positions stay with an issue",
     )?;
     pass(&connector, &manager, "position-multipage", 7).await?;
     let records = connector
@@ -595,6 +655,62 @@ async fn main() -> Result<()> {
             .iter()
             .any(|i| i.kind == "unknown_outcome"),
         "unknown outcome has reconciliation issue",
+    )?;
+    MODE.store(9, Ordering::SeqCst);
+    let c = connector.clone();
+    let s = manager.clone();
+    let delayed = tokio::spawn(async move {
+        c.synchronise(&s, 1, "timed-out-worker", SyncOptions::default())
+            .await
+    });
+    ENTERED.notified().await;
+    client.execute("UPDATE people_connector_sync_runs SET started_at=now()-interval '2 hours' WHERE tenant_id=1 AND connection_id=$1 AND idempotency_key='timed-out-worker'",&[&id]).await?;
+    pass(&connector, &manager, "after-timeout", 0).await?;
+    RELEASE.notify_one();
+    expect(
+        delayed
+            .await
+            .map_err(|_| Error::Internal)?
+            .map_err(|_| Error::Internal)?
+            .state
+            == RunState::Unknown,
+        "timed-out worker cannot apply its late result",
+    )?;
+    MODE.store(11, Ordering::SeqCst);
+    expect(
+        connector
+            .synchronise(
+                &manager,
+                1,
+                "bootstrap-deactivation",
+                SyncOptions {
+                    full: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(|_| Error::Internal)?
+            .state
+            == RunState::Failed,
+        "bootstrap refuses explicit deactivation pages",
+    )?;
+    MODE.store(0, Ordering::SeqCst);
+    expect(
+        connector
+            .synchronise(
+                &manager,
+                1,
+                "forced-full",
+                SyncOptions {
+                    full: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(|_| Error::Internal)?
+            .pass
+            == RunPass::Bootstrap,
+        "full option bootstraps after an existing checkpoint",
     )?;
     let mismatch = connector
         .synchronise(

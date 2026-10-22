@@ -223,6 +223,9 @@ impl Connector {
             Ok(v) => v,
             Err(_) => Outcome::Unknown,
         };
+        // Release the read connection before acquiring the finish transaction;
+        // simultaneous passes across companies must not exhaust the pool.
+        drop(client);
         self.finish_sync(scope, c, stamp, run, cp, provider, outcome)
             .await
     }
@@ -718,10 +721,7 @@ async fn issue(
     severity: &str,
     identity: Option<&Identity>,
 ) -> Result<()> {
-    let before = store::rows(tx.sql(), Table::Issue, c)
-        .await?
-        .into_iter()
-        .find(|v| v["issue_key"] == key);
+    let before = issue_row(tx.sql(), c, key).await?;
     let now = Timestamp::now().to_string();
     let values = json!({"tenant_id":c.tenant_id,"connection_id":c.id,"issue_key":key,"kind":kind,"reason":reason,"severity":severity,
         "record_kind":identity.map(|i|i.0.as_str()),"stable_id":identity.map(|i|&i.2),"status":"open",
@@ -737,18 +737,25 @@ async fn resolve(tx: &mut MutationTransaction<'_>, raw: Value) -> Result<()> {
     store::save(tx, Table::Issue, Some(raw), after).await?;
     Ok(())
 }
+async fn issue_row(
+    client: &impl GenericClient,
+    c: &Connection,
+    key: &str,
+) -> Result<Option<Value>> {
+    Ok(client.query_opt("SELECT to_jsonb(i) FROM people_connector_reconciliation_issues i WHERE tenant_id=$1 AND connection_id=$2 AND issue_key=$3",&[&c.tenant_id,&c.id,&key]).await.map_err(Error::from)?.map(|row|row.get(0)))
+}
 async fn resolve_key(tx: &mut MutationTransaction<'_>, c: &Connection, key: &str) -> Result<()> {
-    if let Some(raw) = store::rows(tx.sql(), Table::Issue, c)
+    if let Some(raw) = issue_row(tx.sql(), c, key)
         .await?
-        .into_iter()
-        .find(|v| v["issue_key"] == key && v["status"] == "open")
+        .filter(|v| v["status"] == "open")
     {
         resolve(tx, raw).await?;
     }
     Ok(())
 }
+
 enum Entry {
-    Record(WorkforceRecord),
+    Record(Box<WorkforceRecord>),
     Deactivation(Deactivation),
 }
 fn classify(raw: Value, c: &Connection, p: &Provider) -> std::result::Result<Entry, &'static str> {
@@ -765,7 +772,7 @@ fn classify(raw: Value, c: &Connection, p: &Provider) -> std::result::Result<Ent
             return Err("invalid_record");
         }
         let company = record.workforce_company_id;
-        (Entry::Record(record), company)
+        (Entry::Record(Box::new(record)), company)
     };
     if id.1 != c.workforce_source_id {
         return Err("foreign_source");
@@ -905,6 +912,9 @@ async fn apply(
             }
             Ok(Entry::Deactivation(change)) => {
                 let id = (change.kind, change.source_id, change.stable_id);
+                // A superseded tombstone is present too: snapshot absence must
+                // not turn it into a newer deactivation.
+                seen.insert(id.clone());
                 let counter = if let Some(raw) = projections.get(&id).cloned() {
                     let current: WorkforceRecord = store::decode(raw.clone())?;
                     if change.observed_at < current.observed_at {
