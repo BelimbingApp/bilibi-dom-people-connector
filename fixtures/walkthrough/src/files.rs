@@ -53,10 +53,8 @@ impl ReadPort for Directory {
             let at = jiff::Timestamp::now();
             let kinds = if auth.capability == "organization_directory" {
                 vec!["position"]
-            } else if auth.capability == "company_directory" {
-                vec!["company"]
             } else {
-                vec!["employee"]
+                vec!["company", "employee"]
             };
             let entries=kinds.into_iter().map(|kind|{let mut value=json!({"kind":kind,"source_id":"people/native","stable_id":kind,"workforce_company_id":1001,"name":"Fixture directory fact","code":"FIXTURE","email":null,"supervisor_stable_id":null,"observed_at":at.to_string(),"active":true});if kind=="position"{value["parent_stable_id"]=Value::Null;value["version"]=json!(1);value["vacant"]=json!(true);value["assignments_incomplete"]=json!(false);value["assignments"]=json!([]);}value}).collect();
             Ok(Page {
