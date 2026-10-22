@@ -1,0 +1,10 @@
+{% import "components.html" as ui %}
+{% import "forms.html" as forms %}
+<div class="flex flex-wrap gap-3">
+{% call ui::button(id="people-connections-synchronise", event="synchronise", name="key", value=key, variant=bilibi_ui::ButtonVariant::Primary, disabled=disabled, working="Synchronising…") %}Synchronise now{% endcall %}
+{% call forms::form(id="people-connections-full-read-form", event="synchronise") %}
+{% call forms::input(field=bilibi_ui::Field::named("key").kind(bilibi_ui::InputKind::Hidden).value(key)) %}{% endcall %}
+{% call forms::input(field=bilibi_ui::Field::named("full").kind(bilibi_ui::InputKind::Hidden).value("true")) %}{% endcall %}
+{% call ui::button(id="people-connections-full-read", button_type="submit", disabled=disabled, working="Reading…") %}Full read{% endcall %}
+{% endcall %}
+</div>

@@ -1,0 +1,11 @@
+{# Bilimbi ConnectionsLive.sync_section. #}
+{% import "components.html" as ui %}
+{% call ui::section_heading(title="Synchronisation", description="Directory records read from the provider into this connection. People records are never changed.") %}{% endcall %}
+{% call ui::card(id="people-connections-sync") %}
+{{ facts }}
+{{ actions }}
+{% call ui::section_heading(id="people-connections-issues-heading", title="Open issues", count=Some(issue_count)) %}{% endcall %}
+{{ issues }}
+{{ webhook }}
+{{ policy }}
+{% endcall %}

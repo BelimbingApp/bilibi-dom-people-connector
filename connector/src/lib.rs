@@ -38,6 +38,7 @@ mod backup;
 mod backup_store;
 mod backups_web;
 mod connections;
+mod connections_web;
 mod file_format;
 mod file_store;
 mod files;
