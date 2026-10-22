@@ -67,11 +67,9 @@ The handler resolves policy by tenant and platform company from its own connecti
 
 ## Walkthrough
 
-Run the signed-receipt walkthrough on an empty disposable database with an ephemeral installation key:
+Set `DATABASE_URL` to an empty disposable database connection string, then run the signed-receipt walkthrough with an ephemeral installation key:
 
 ```sh
-export PGPASSFILE="$HOME/.pgpass"
-export DATABASE_URL=postgres://postgres@localhost:5433/bilibi_webhook_proof
 export BILIBI_SETTINGS_KEY=$(openssl rand -hex 32)
 cargo run -p bilibi-people-connector-walkthrough --example webhooks
 ```
