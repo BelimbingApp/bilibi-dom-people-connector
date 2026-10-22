@@ -39,11 +39,18 @@ mod operations_web;
 mod retention;
 pub use doctor::{DoctorReport, Finding, FindingState};
 pub use retention::{PurgeResult, RetentionPolicy, RetentionRecord, RETENTION_FIELDS};
+mod backup;
+mod backup_store;
+mod backups_web;
 mod connections;
 mod file_format;
 mod file_store;
 mod files;
 mod files_web;
+pub use backup::{
+    Backup, BackupChange, BackupPolicy, BackupPolicyUpdate, BackupPreview, BackupPurge,
+    BackupReceipt, BackupRestore, BackupSummary,
+};
 pub use files::{FileExchange, FilePolicy, FileReceipt, FileSummary};
 mod contributions;
 mod sync;
@@ -95,6 +102,34 @@ pub type Result<T> = std::result::Result<T, ConnectorError>;
 /// its connections page shows for it.
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectorError {
+    #[error("The backup operation was refused. Check access, connection health and private artifact storage, then preview again.")]
+    InvalidBackup,
+    #[error("Enter a whole number within the stated range.")]
+    InvalidBackupPolicy,
+    #[error("Configure a native connection on People connections first.")]
+    ConnectionUnavailable,
+    #[error(
+        "The backup belongs to a different connection or mapping. Use a backup of this connection."
+    )]
+    ConnectionChanged,
+    #[error("Connection state changed after the preview. Preview the backup again.")]
+    PreviewChanged,
+    #[error("The preview expired. Preview the backup again.")]
+    PreviewExpired,
+    #[error("The backup operation was refused. Check access, connection health and private artifact storage, then preview again.")]
+    InvalidConfirmation,
+    #[error("The backup operation was refused. Check access, connection health and private artifact storage, then preview again.")]
+    ConfirmationRequired,
+    #[error("The backup operation was refused. Check access, connection health and private artifact storage, then preview again.")]
+    AlreadyRestored,
+    #[error("Restore this backup before requesting recovery.")]
+    RestoreRequired,
+    #[error("Backup integrity failed. Use another backup and review private storage.")]
+    BackupIntegrity,
+    #[error(
+        "Private storage could not remove the backup. Review private storage settings and retry."
+    )]
+    BackupCleanupPending,
     /// A denied or unknown capability, or a company outside the actor's reach.
     #[error("You cannot change connections for this company. Ask an administrator for access.")]
     Unauthorized,
@@ -173,10 +208,6 @@ pub enum ConnectorError {
         "File exchange refused. Check the connection, file policy and private storage settings."
     )]
     TooManyRecords,
-    #[error(
-        "File exchange refused. Check the connection, file policy and private storage settings."
-    )]
-    ConnectionChanged,
     #[error(
         "File exchange refused. Check the connection, file policy and private storage settings."
     )]
@@ -518,6 +549,7 @@ impl Connector {
         webhook_store::remove(&mut tx, &connection).await?;
         sync_store::remove(&mut tx, &connection).await?;
         file_store::detach(&mut tx, scope.tenant(), connection.id).await?;
+        backup_store::detach(&mut tx, scope.tenant(), connection.id).await?;
         connections::delete(&mut tx, connection).await?;
         tx.commit().await?;
         Ok(())

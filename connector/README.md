@@ -1,13 +1,8 @@
 # Connector
 
-`people_connector/connector` owns the integration contracts, each company's
-provider connection, directory synchronisation into Connector-owned
-projections, signed inbound notifications and private directory file exchange.
-Connection health and record retention are also available. Backups follow in a later slice. This README is the owner contract; the Bilimbi
-source it ports is
-[`connector/docs/README.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/main/connector/docs/README.md).
+`people_connector/connector` owns provider connections, directory synchronisation into Connector-owned projections, signed inbound notifications, private directory files, connection health and record retention, and backup and recovery. This README is the owner contract; the Bilimbi source it ports is [`connector/docs/README.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/main/connector/docs/README.md).
 
-Connections, synchronisation, signed inbound notifications and file exchange are available through `Connector`. The Files page is at `/integrations/people/files`. The Operations page is at `/integrations/people/operations`; see [health and retention](operations.md). The connections page (KC2) and backups (KC6) follow separately.
+These features are available through `Connector`. The Files page is at `/integrations/people/files`, Operations at `/integrations/people/operations` ([health and retention](operations.md)), and Backups at `/integrations/people/backups`. The connections page (KC2) follows separately.
 
 The [native notification contract](webhooks.md) describes `POST /webhooks/people-native`, the manager-only policy API and replay rules. Bilibi keeps the three company webhook policy values on its connection row, with the secret encrypted through `Settings::seal_owned`, because an inbound machine has no login scope. The Bilimbi `people-connector.webhook.*` Settings keys are not used or registered. The sender only verifies and records a receipt; it never reads the People directory or enqueues synchronisation.
 
@@ -244,3 +239,41 @@ Receipts in `people_connector_file_exchanges` record both company axes, connecti
 Every artifact creation and read rechecks company reach, the receipt's original connection, enabled native provider and current mapping. Connection removal preserves receipts with an empty connection reference. Recreating or remapping the connection cannot reopen earlier files. Managers may remove expired bytes after disconnecting. This action uses a confirmation and Base's bounded retention batch; receipt history remains. Downloads use the authenticated `DOWNLOADS` route `/integrations/people/files/{company_id}/{id}`, reauthorize each read and return an attachment with private/no-store and nosniff headers. Audit captures receipt IDs, artifact IDs, counts and fixed outcomes, never document content or filenames.
 
 Run the disposable-database file walkthrough with `DATABASE_URL=… BILIBI_FILES_PROOF_ROOT=/absolute/private/directory cargo run -p bilibi-people-connector-walkthrough --example files`. Its fixture company port proves separate company axes even while the native directory port is not yet available. The separate `files-server` example serves the real Files page in the connector-only composition using that fixture port and a fixture-only directory descriptor. Do not run that example with People mounted; the product registers neither fixture.
+
+## Backup and recovery
+
+Connection managers can save a private snapshot at `/integrations/people/backups`, review its changes, then restore it after confirmation. Call `connector.backups()` for the same workflow through `Backup::{summary, configure, create, preview, restore, recover, purge_expired, retry_purge}`. Each call takes the sealed scope and an explicit platform company ID.
+
+A backup includes the native provider contract, both company axes, enabled state, non-secret sync/file/webhook settings, checkpoint, and all Connector directory records, including inactive records and position assignments. It excludes People business data, credentials, webhook signing secrets, sync outcomes, reconciliation history, audit history, and replay guards. `create` saves JSON through Base Artifacts and records its SHA-256. Failed publication leaves a failed receipt. Set private artifact storage in Operator Settings first.
+
+| Company setting | Default | Range |
+| --- | --- | --- |
+| `people-connector.backup.retention_days` | 30 days | 1–3650 |
+| `people-connector.backup.preview_minutes` | 10 minutes | 1–60 |
+
+The page edits both settings inline. A backup keeps the expiry set when it was created, capped by the installation's artifact retention. Changing retention affects new backups. Expired backups cannot be previewed or restored.
+
+### Restore a backup
+
+1. Choose **Preview restore** to check the private bytes and review current and saved values.
+2. Choose **Restore backup** and confirm the replacement in the shared dialog.
+3. Re-enter any required secrets on People connections. Restore clears credentials and webhook signing secrets, and disables webhook intake.
+4. Choose **Sync from checkpoint**. A disabled connection must be enabled first.
+
+The restore preview names the current installation through the shared Instance banner. The preview token stays on the server. Its stored hash binds it to the account, impersonator, current connection state, and preview expiry. A new preview invalidates the previous token. Restore checks authorization, the active company, mapping, bytes, idle sync state, token, and reviewed state again under the company and connection locks.
+
+**Restore replaces configuration, directory records, and checkpoint atomically.** Every changed row goes through MutationBoundary. An audit failure rolls back the complete replacement. Sync outcomes, issues, replay guards, and audit history remain. The checkpoint generation advances past both the saved and current generation. A backup taken before the first sync restores a `bootstrap_required` checkpoint marker so its generation still fences recovery while the next pass performs a bootstrap read.
+
+A backup can be restored once. Repeating the exact actor/token request returns the recorded restore without applying it again. A different actor/token is refused. Removed and recreated connections cannot use old backups, even when their company mapping matches.
+
+Recovery calls the ordinary sync engine with the restored connection identity, expected generation, and `recovery:<backup UUID>` key. A repeated recovery returns its recorded run. If another sync advanced the generation before recovery started, use normal synchronisation on People connections. A recorded unsuccessful outcome is shown as incomplete recovery.
+
+Snapshots keep the webhook signing window and intake flag under their original contract names in the JSON settings object. Their live values come from the connection-owned webhook policy described in [webhooks.md](webhooks.md). Restore clears its owner-encrypted secret, disables intake, and restores the signing window in the same transaction. Older backups without webhook policy restore the default signing window and keep intake disabled.
+
+### Clean expired backups
+
+**Clean expired backups** deletes private bytes through Base Artifacts and keeps the receipt with its artifact reference and `purged` state. The installation's artifact batch size, retry interval, and maximum attempts also govern backup cleanup. Each attempt is claimed under the company and receipt locks before file deletion.
+
+A failed cleanup records its fixed error code, attempt count, and time, then waits for the retry interval. At the maximum attempts it moves to **Held cleanup** and leaves automatic batches. Correct private storage, then choose **Retry cleanup** to release the hold and try again. Cleanup remains available after a connection is removed or People is unmounted. Base Artifacts separately reconciles unpublished storage reservations.
+
+The receipt table is `people_connector_backups`, added by migration `people-connector-connector-006-backups`. `fixtures/walkthrough/examples/backups.rs` drives the real facade on a disposable database. `backups-server.rs` serves the real web host with an isolated fixture directory port for browser interaction; run it without People mounted. Neither contributes product records or a production adapter.

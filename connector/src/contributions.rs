@@ -47,7 +47,7 @@ inventory::submit! {
         layer: Layer::Domains,
         dependencies: &[
             "base/artifacts", "base/audit", "base/authz", "base/database", "base/datetime", "base/integration", "base/locale", "base/ui", "base/menu", "base/module_registry", "base/party_ids",
-            "base/ports", "base/settings", "base/tenancy", "core/company",
+            "base/ports", "base/settings", "base/system", "base/tenancy", "core/company",
         ],
         migrations: &[(
             "people-connector-connector-001-connections",
@@ -64,6 +64,9 @@ inventory::submit! {
         ), (
             "people-connector-connector-005-retention-attempts",
             include_str!("../migrations/005-retention-attempts.sql"),
+        ), (
+            "people-connector-connector-006-backups",
+            include_str!("../migrations/006-backups.sql"),
         )],
         services: &[Service {
             id: SERVICE,
@@ -82,7 +85,7 @@ inventory::submit! {
             factory: |services| Ok(Arc::new(bilibi_integration::webhooks::WebhookService(
                 services.get::<Connector>(SERVICE)?,
             ))),
-        }, Service {id:crate::operations_web::PAGE_ID,factory:crate::operations_web::pages_service}, Service {id:crate::files_web::PAGE_ID,factory:crate::files_web::pages_service}, Service {id:crate::files_web::DOWNLOAD_ID,factory:crate::files_web::download_service}],
+        }, Service {id:crate::backups_web::PAGE_ID,factory:crate::backups_web::pages_service}, Service {id:crate::operations_web::PAGE_ID,factory:crate::operations_web::pages_service}, Service {id:crate::files_web::PAGE_ID,factory:crate::files_web::pages_service}, Service {id:crate::files_web::DOWNLOAD_ID,factory:crate::files_web::download_service}],
     }
 }
 
@@ -279,4 +282,22 @@ retention_setting!(
     1440,
     "Retry delay (minutes)",
     "Wait this many minutes before retrying a failed removal."
+);
+
+// KC6: Bilimbi's backup policy; changes affect newly created receipts/previews.
+sync_policy!(
+    "people-connector.backup.retention_days",
+    30,
+    1,
+    3650,
+    "Backup retention (days)",
+    "Days a new connection backup remains available."
+);
+sync_policy!(
+    "people-connector.backup.preview_minutes",
+    10,
+    1,
+    60,
+    "Backup preview validity (minutes)",
+    "Minutes a restore preview remains valid."
 );

@@ -33,6 +33,8 @@ struct Checkpoint {
     tenant_id: i64,
     connection_id: i64,
     version: i64,
+    #[serde(default)]
+    bootstrap_required: bool,
     resume_cursor: Option<String>,
     #[serde(with = "sync_types::instant")]
     as_of_at: Timestamp,
@@ -70,6 +72,7 @@ fn fresh(c: Option<&Connection>, checkpoint: &Option<Checkpoint>, policy: SyncPo
         return Freshness::Unavailable("disconnected".into());
     }
     match checkpoint {
+        Some(c) if c.bootstrap_required => Freshness::Unavailable("never_synchronised".into()),
         None => Freshness::Unavailable("never_synchronised".into()),
         Some(c)
             if Timestamp::now().as_second() - c.as_of_at.as_second()
@@ -117,6 +120,19 @@ impl Connector {
         idempotency_key: &str,
         options: SyncOptions,
     ) -> Result<SyncRun> {
+        self.synchronise_connection(scope, platform_company_id, idempotency_key, options, None)
+            .await
+    }
+    // A recovery reservation must match the connection that held its restored
+    // generation, even if removal/recreation races the artifact workflow.
+    pub(crate) async fn synchronise_connection(
+        &self,
+        scope: &Scope,
+        platform_company_id: i64,
+        idempotency_key: &str,
+        options: SyncOptions,
+        expected_connection: Option<i64>,
+    ) -> Result<SyncRun> {
         let mut client = self.db.get().await.map_err(Error::from)?;
         let company = authorize(&**client, scope, platform_company_id).await?;
         if !key_valid(idempotency_key) {
@@ -129,6 +145,9 @@ impl Connector {
         let current =
             Status::from_workforce(people::company(&self.ports, &tx, scope, company).await?)?;
         let (c, provider) = self.connection_provider(tx.sql(), scope, company).await?;
+        if expected_connection.is_some_and(|id| id != c.id) {
+            return Err(ConnectorError::ConnectionChanged);
+        }
         require_mapping(&c, &current)?;
         if !c.enabled {
             return Err(ConnectorError::Disconnected);
@@ -184,7 +203,7 @@ impl Connector {
         {
             return Err(ConnectorError::CheckpointMoved);
         }
-        let pass = if options.full || cp.is_none() {
+        let pass = if options.full || cp.as_ref().is_none_or(|c| c.bootstrap_required) {
             RunPass::Bootstrap
         } else {
             RunPass::Incremental
