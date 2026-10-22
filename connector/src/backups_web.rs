@@ -1,5 +1,5 @@
 //! Bilimbi Connector.Web.BackupsLive. Preview and confirmation remain on the server.
-use crate::{BackupPolicy, BackupPreview, BackupSummary, Connector, ConnectorError, MANAGE};
+use crate::{BackupPreview, BackupSummary, Connector, ConnectorError, MANAGE};
 use askama::Template;
 use bilibi_database::{Db, Error, Result};
 use bilibi_datetime::{DisplayContext, DisplayPolicy, Format, Precision};
@@ -75,7 +75,7 @@ fn columns(id: &str, fields: &[(&str, &str)]) -> Result<ListColumns> {
         id,
         fields
             .iter()
-            .map(|(key, label)| BuiltinColumn::new(*key, *label))
+            .map(|(key, label)| BuiltinColumn::new(key, label))
             .collect(),
     )
     .map_err(|_| Error::Internal)

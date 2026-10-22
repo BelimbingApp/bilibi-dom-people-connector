@@ -694,7 +694,7 @@ impl Backup<'_> {
     }
     pub async fn recover(&self, scope: &Scope, company: i64, id: &str) -> Result<SyncRun> {
         let mut client = self.connector.db.get().await.map_err(Error::from)?;
-        let mut tx = self
+        let tx = self
             .connector
             .begin(
                 &mut client,
