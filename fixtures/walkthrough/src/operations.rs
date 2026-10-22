@@ -326,6 +326,38 @@ pub async fn operations_walkthrough() -> Result<()> {
         "unexpired file bytes preserve their receipt",
     )?;
     client.execute("UPDATE people_connector_file_exchanges SET expires_at=clock_timestamp()-interval '2 days' WHERE tenant_id=1 AND id::text=$1",&[&receipt.id]).await?;
+    client.execute("INSERT INTO people_connector_file_exchanges(id,tenant_id,platform_company_id,connection_id,workforce_source_id,workforce_company_id,direction,sha256,record_count,state,inserted_at,updated_at) SELECT gen_random_uuid(),tenant_id,platform_company_id,connection_id,workforce_source_id,workforce_company_id,direction,sha256,record_count,'pending',clock_timestamp()-interval '5 days',clock_timestamp()-interval '5 days' FROM people_connector_file_exchanges WHERE tenant_id=1 AND id::text=$1",&[&receipt.id]).await?;
+    let report = connector.run_doctor(&manager, 1).await?;
+    require(
+        report
+            .checks
+            .iter()
+            .any(|c| c.code == "expired_files" && c.count == Some(1))
+            && report
+                .checks
+                .iter()
+                .any(|c| c.code == "stalled_files" && c.count == Some(1)),
+        "doctor counts expired and abandoned receipts",
+    )?;
+    client.batch_execute("CREATE FUNCTION kc5_artifact_hold() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture artifact hold'; END $$; CREATE TRIGGER kc5_artifact_hold BEFORE UPDATE ON base_artifacts FOR EACH ROW EXECUTE FUNCTION kc5_artifact_hold()").await?;
+    let held = connector.purge(&manager, 1).await?;
+    require(
+        held.errors.iter().any(|r| {
+            r.id == receipt.id
+                && r.reason.as_deref()
+                    == Some(ConnectorError::ArtifactCleanupFailed.to_string().as_str())
+        }),
+        "Artifacts cleanup failure holds its receipt with a safe sentence",
+    )?;
+    let unpurged: bool = client
+        .query_one(
+            "SELECT purged_at IS NULL FROM base_artifacts WHERE tenant_id=1 AND public_id=$1",
+            &[&receipt.artifact_id],
+        )
+        .await?
+        .get(0);
+    require(unpurged, "failed Artifacts cleanup cannot delete a receipt")?;
+    client.batch_execute("DROP TRIGGER kc5_artifact_hold ON base_artifacts; DROP FUNCTION kc5_artifact_hold(); UPDATE people_connector_retention_attempts SET attempted_at=clock_timestamp()-interval '61 minutes' WHERE tenant_id=1 AND platform_company_id=1").await?;
     // Block the receipt deletion AFTER Artifacts commits cleanup: retry must be idempotent.
     client.batch_execute("CREATE FUNCTION kc5_receipt_hold() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture receipt hold'; END $$; CREATE TRIGGER kc5_receipt_hold BEFORE DELETE ON people_connector_file_exchanges FOR EACH ROW EXECUTE FUNCTION kc5_receipt_hold()").await?;
     let result = connector.purge(&manager, 1).await?;
@@ -348,6 +380,42 @@ pub async fn operations_walkthrough() -> Result<()> {
     )?;
     let holds:i64=client.query_one("SELECT count(*) FROM people_connector_retention_attempts WHERE tenant_id=1 AND platform_company_id=1",&[]).await?.get(0);
     require(holds == 0, "successful deletion clears audited retry holds")?;
+    let pending:i64=client.query_one("SELECT count(*) FROM people_connector_file_exchanges WHERE tenant_id=1 AND platform_company_id=1 AND state='pending'",&[]).await?.get(0);
+    require(
+        pending == 1,
+        "pending file exchanges remain regardless of age",
+    )?;
+    let audit:Value=client.query_one("SELECT payload FROM base_audit_actions WHERE tenant_id=1 AND event='people-connector.doctor' ORDER BY id DESC LIMIT 1",&[]).await?.get(0);
+    require(
+        audit["checks"].as_array().is_some_and(|checks| {
+            checks.iter().all(|c| {
+                c.as_object().is_some_and(|o| {
+                    o.len() == 3
+                        && o.contains_key("code")
+                        && o.contains_key("state")
+                        && o.contains_key("count")
+                })
+            })
+        }),
+        "doctor audit contains only finding codes, states and counts",
+    )?;
+    let mut detached_bytes = bytes.clone();
+    detached_bytes.push(b' ');
+    let detached = connector
+        .import_file(&manager, 1, &detached_bytes)
+        .await?
+        .receipt;
+    client.execute("UPDATE people_connector_file_exchanges SET inserted_at=clock_timestamp()-interval '5 days',expires_at=clock_timestamp()-interval '2 days' WHERE tenant_id=1 AND id::text=$1",&[&detached.id]).await?;
+    connector.remove_connection(&manager, 1).await?;
+    require(
+        absent
+            .purge(&manager, 1)
+            .await?
+            .deleted
+            .iter()
+            .any(|r| r.kind == "file" && r.id == detached.id),
+        "detached file receipt cleans up without People or a connection",
+    )?;
     grants.set_direct(&admin, 1, MANAGE, Some(false)).await?;
     require(
         matches!(
