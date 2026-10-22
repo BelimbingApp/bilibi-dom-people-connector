@@ -452,7 +452,7 @@ pub async fn operations_walkthrough() -> Result<()> {
 }
 
 /// After the main proof, prepare the real mounted app for a browser purge failure.
-/// This explicit fixture command requires People and a disposable walkthrough database.
+/// Uses a fixture-only company port when the optional People port is absent.
 pub async fn operations_browser_setup() -> Result<()> {
     bilibi_base::link();
     bilibi_core::link();
@@ -469,7 +469,49 @@ pub async fn operations_browser_setup() -> Result<()> {
         .get::<Authentication>("base/tenancy.authentication")?
         .authenticate(&**client, 1, 1, "operations-browser-fixture".into())
         .await?;
-    let connector = services.get::<Connector>(SERVICE)?;
+    let installed = services.get::<Connector>(SERVICE)?;
+    let connector = if installed.people_available() {
+        installed
+    } else {
+        // Same explicit catalog seam as the main proof; the product host gets no fake port.
+        let fixture = Module {
+            id: "people/workforce",
+            layer: Layer::Domains,
+            dependencies: &["base/ports"],
+            migrations: &[],
+            services: &[],
+        };
+        let mut deployment: Vec<&Module> = modules
+            .iter()
+            .copied()
+            .filter(|m| m.id != "people/workforce")
+            .collect();
+        deployment.push(&fixture);
+        let consumers: Vec<&Consumer> = inventory::iter::<Consumer>
+            .into_iter()
+            .filter(|c| [ADAPTERS, PORTS].contains(&c.id))
+            .collect();
+        let port = Contribution::new(
+            PORTS,
+            DIRECTORY_PORT,
+            Provenance {
+                module: "people/workforce",
+                source: file!(),
+                line: line!(),
+            },
+            &Port {
+                provider: &crate::FileCompanyPort,
+            },
+        );
+        let catalog = Catalog::build(&deployment, consumers, vec![&port])?;
+        Arc::new(Connector::from_catalog(
+            &services,
+            &catalog,
+            &deployment,
+            Providers::installed(),
+            Arc::new(Ports::from_catalog(&catalog, &deployment)?),
+        )?)
+    };
     connector
         .configure_connection(&scope, 1, NATIVE_PROVIDER_ID)
         .await?;
