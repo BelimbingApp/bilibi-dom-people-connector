@@ -13,10 +13,10 @@ use bilibi_ui::{
         LiveBody, LiveFuture, LiveInput, LiveRequest, LiveState, MountFuture, Page, PageBody,
         PageFuture, PageRequest, PageService,
     },
-    params, BuiltinColumn, Button, Card, Cell, Choice, CommitStates, CommitStatus, ConfirmDialog,
-    EmptyState, Fact, Facts, Field, FlashMap, FlexRow, FlexTable, Form, Html, InlineEdit,
-    InlineField, InputKind, Instant, ListColumns, ListSpec, ListState, SectionHeading, StatusKind,
-    TableEmpty,
+    params, ActionLink, BuiltinColumn, Button, Card, Cell, Choice, CommitStates, CommitStatus,
+    ConfirmDialog, EmptyState, Fact, Facts, Field, FlashMap, FlexRow, FlexTable, Form, Html,
+    InlineEdit, InlineField, InputKind, Instant, ListColumns, ListSpec, ListState, SectionHeading,
+    StatusKind, TableEmpty,
 };
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
@@ -177,7 +177,7 @@ impl State {
     fn outcome<T>(&mut self, result: crate::Result<T>, message: &str) {
         self.flash = Some(match result {
             Ok(_) => (message.into(), StatusKind::Success),
-            Err(e) => (message_for(&e).into(), StatusKind::Error),
+            Err(e) => (message_for(&e), StatusKind::Error),
         });
     }
     async fn event(&mut self, scope: &Scope, payload: &Value) -> Result<()> {
@@ -636,6 +636,14 @@ impl State {
             }
         }
         View {
+            actions: render(ActionLink {
+                id: "people-backups-connections",
+                icon: "manage",
+                title: "People connections",
+                href: "/integrations/people/connections",
+                method: "",
+                body: Html::text("People connections"),
+            })?,
             selector,
             content,
             dialog,
@@ -681,6 +689,7 @@ fn button(id: &str, event: &str, label: &str, working: &str, value: Option<&str>
 #[derive(Template)]
 #[template(path = "backups.html")]
 struct View<'a> {
+    actions: Html,
     selector: Html,
     content: Html,
     dialog: Html,

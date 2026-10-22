@@ -41,8 +41,8 @@ static PORT: Contribution = Contribution::new(
         provider: &BackupCompanyPort,
     },
 );
-struct Directory;
-impl ReadPort for Directory {
+pub struct BackupDirectory;
+impl ReadPort for BackupDirectory {
     fn read<'a>(
         &'a self,
         _context: PortContext<'a>,
@@ -78,7 +78,7 @@ static ADAPTER: Contribution = Contribution::new(
     },
     &Adapter {
         provider_id: NATIVE_PROVIDER_ID,
-        port: &Directory,
+        port: &BackupDirectory,
     },
 );
 fn require(ok: bool, message: &str) -> Result<()> {
@@ -198,6 +198,52 @@ pub async fn backup_walkthrough() -> Result<()> {
         .configure_connection(&manager, 1, NATIVE_PROVIDER_ID)
         .await?;
     let backup = connector.backups();
+    let mut tx = boundary
+        .begin(
+            &mut client,
+            admin.mutation_context("backups.fixture.storage_outage"),
+        )
+        .await?;
+    settings
+        .put(
+            &mut tx,
+            &admin,
+            bilibi_base::settings::Target::Global,
+            "artifacts.storage_root",
+            json!(format!("{root}/missing")),
+        )
+        .await?;
+    tx.commit().await?;
+    require(
+        backup.create(&manager, 1).await.is_err(),
+        "storage outage refuses backup publication",
+    )?;
+    require(
+        backup
+            .summary(&manager, 1)
+            .await?
+            .records
+            .first()
+            .is_some_and(|r| r.state == "failed"),
+        "failed publication leaves a failed receipt",
+    )?;
+    let mut tx = boundary
+        .begin(
+            &mut client,
+            admin.mutation_context("backups.fixture.storage_restored"),
+        )
+        .await?;
+    settings
+        .put(
+            &mut tx,
+            &admin,
+            bilibi_base::settings::Target::Global,
+            "artifacts.storage_root",
+            json!(root),
+        )
+        .await?;
+    tx.commit().await?;
+
     require(
         backup.create(&viewer, 1).await.is_err(),
         "viewer cannot back up",
@@ -230,6 +276,15 @@ pub async fn backup_walkthrough() -> Result<()> {
             },
         )
         .await?;
+    client.execute("INSERT INTO people_connector_sync_runs (tenant_id,connection_id,platform_company_id,provider_id,idempotency_key,pass,state,started_at) SELECT tenant_id,id,platform_company_id,provider_id,'backup-proof-running','bootstrap','running',clock_timestamp() FROM people_connector_connections WHERE tenant_id=1 AND platform_company_id=1",&[]).await?;
+    require(
+        matches!(
+            backup.create(&manager, 1).await,
+            Err(ConnectorError::SyncInProgress)
+        ),
+        "running sync prevents backup reservation",
+    )?;
+    client.execute("DELETE FROM people_connector_sync_runs WHERE tenant_id=1 AND idempotency_key='backup-proof-running'",&[]).await?;
     let empty = backup.create(&manager, 1).await?;
     let preview = backup.preview(&manager, 1, &empty.id).await?;
     require(
@@ -279,6 +334,23 @@ pub async fn backup_walkthrough() -> Result<()> {
         backup.recover(&manager, 1, &empty.id).await?.id == run.id,
         "recovery replay survives later checkpoint advancement",
     )?;
+    let secret = format!("fixture-secret-{}", jiff::Timestamp::now().as_nanosecond());
+    let mut tx = boundary
+        .begin(
+            &mut client,
+            admin.mutation_context("backups.fixture.credential"),
+        )
+        .await?;
+    settings
+        .put(
+            &mut tx,
+            &admin,
+            bilibi_base::settings::Target::Company(bilibi_party_ids::OrganisationId::new(1)?),
+            CREDENTIAL_KEY,
+            json!(secret),
+        )
+        .await?;
+    tx.commit().await?;
     let receipt = backup.create(&manager, 1).await?;
     require(
         receipt.expires_at.parse::<jiff::Timestamp>()?.as_second()
@@ -299,6 +371,11 @@ pub async fn backup_walkthrough() -> Result<()> {
         saved.get("sync_runs").is_none() && saved["settings"].get(CREDENTIAL_KEY).is_none(),
         "snapshot excludes history and credentials",
     )?;
+    require(
+        !String::from_utf8_lossy(&bytes).contains(&secret),
+        "snapshot contains no stored credential bytes",
+    )?;
+
     client.execute("UPDATE people_connector_workforce_records SET name='Changed after backup',active=false WHERE tenant_id=1 AND kind='employee'",&[]).await?;
     let preview = backup.preview(&manager, 1, &receipt.id).await?;
     require(
@@ -394,6 +471,11 @@ pub async fn backup_walkthrough() -> Result<()> {
         restored_fact,
         "confirmed restore replaces projections atomically",
     )?;
+    require(
+        !connector.status(&manager, 1).await?.credential_stored,
+        "restore clears the excluded stored credential",
+    )?;
+
     require(
         backup
             .restore(&manager, 1, &receipt.id, &preview.token, true)

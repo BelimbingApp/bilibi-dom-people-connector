@@ -352,4 +352,4 @@ pub use files::{file_walkthrough, FileCompanyPort};
 
 // KC6: connection backup and recovery proof, independent of product catalogs.
 mod backups;
-pub use backups::{backup_walkthrough, BackupCompanyPort};
+pub use backups::{backup_walkthrough, BackupCompanyPort, BackupDirectory};

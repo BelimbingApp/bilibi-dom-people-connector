@@ -94,7 +94,6 @@ pub type Result<T> = std::result::Result<T, ConnectorError>;
 /// its connections page shows for it.
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectorError {
-    /// A denied or unknown capability, or a company outside the actor's reach.
     #[error("The backup operation was refused. Check access, connection health and private artifact storage, then preview again.")]
     InvalidBackup,
     #[error("Enter a whole number within the stated range.")]
@@ -123,6 +122,7 @@ pub enum ConnectorError {
         "Private storage could not remove the backup. Review private storage settings and retry."
     )]
     BackupCleanupPending,
+    /// A denied or unknown capability, or a company outside the actor's reach.
     #[error("You cannot change connections for this company. Ask an administrator for access.")]
     Unauthorized,
     /// A company the scope cannot see (missing, deleted, another tenant's),
@@ -188,10 +188,6 @@ pub enum ConnectorError {
         "File exchange refused. Check the connection, file policy and private storage settings."
     )]
     TooManyRecords,
-    #[error(
-        "File exchange refused. Check the connection, file policy and private storage settings."
-    )]
-    ConnectionChanged,
     #[error(
         "File exchange refused. Check the connection, file policy and private storage settings."
     )]
