@@ -35,11 +35,11 @@
 //!
 //! See `README.md`.
 mod connections;
-mod files;
 mod file_format;
 mod file_store;
+mod files;
 mod files_web;
-pub use files::{FilePolicy, FileReceipt, FileSummary, FileExchange};
+pub use files::{FileExchange, FilePolicy, FileReceipt, FileSummary};
 mod contributions;
 mod sync;
 mod sync_store;
@@ -126,7 +126,9 @@ pub enum ConnectorError {
     AdapterUnavailable,
     #[error("A synchronisation is already running for this company. Try again when it finishes.")]
     SyncInProgress,
-    #[error("Enter a request key of 1–100 letters, digits, dots, underscores, colons or hyphens, starting with a letter or digit.")]
+    #[error(
+        "Enter a request key of 1–100 letters, digits, dots, underscores, colons or hyphens, starting with a letter or digit."
+    )]
     InvalidIdempotencyKey,
     #[error("Enter whole numbers within the ranges shown.")]
     InvalidPolicy(&'static str),
@@ -135,7 +137,9 @@ pub enum ConnectorError {
     /// A database or capture failure; never a refusal.
     #[error(transparent)]
     Failed(Error),
-    #[error("File exchange refused. Check the connection, file policy and private storage settings.")]
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
     InvalidFile,
     #[error("File exchange is disabled for this connection.")]
     FileExchangeDisabled,
@@ -145,7 +149,9 @@ pub enum ConnectorError {
     FileExchangeAbandoned,
     #[error("Synchronise the native connection before exporting directory files.")]
     DirectoryUnavailable,
-    #[error("File exchange refused. Check the connection, file policy and private storage settings.")]
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
     FileStorage(#[from] bilibi_artifacts::Error),
 }
 impl From<Error> for ConnectorError {

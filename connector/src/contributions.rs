@@ -46,7 +46,7 @@ inventory::submit! {
         id: MODULE,
         layer: Layer::Domains,
         dependencies: &[
-            "base/artifacts", "base/authz", "base/database", "base/datetime", "base/locale", "base/ui", "base/menu", "base/module_registry", "base/party_ids",
+            "base/artifacts", "base/audit", "base/authz", "base/database", "base/datetime", "base/locale", "base/ui", "base/menu", "base/module_registry", "base/party_ids",
             "base/ports", "base/settings", "base/tenancy", "core/company",
         ],
         migrations: &[(
@@ -160,8 +160,48 @@ macro_rules! file_setting {
         })) }
     };
 }
-file_setting!("people-connector.files.enabled",Boolean,false,None,None,"File exchange","Allow directory files to be imported and exported.");
-file_setting!("people-connector.files.json_enabled",Boolean,true,None,None,"Directory JSON format","Allow directory files in JSON format.");
-file_setting!("people-connector.files.max_bytes",Integer,1048576,Some(1.0),Some(10485760.0),"Maximum file bytes","Largest directory file that can be exchanged.");
-file_setting!("people-connector.files.max_records",Integer,1000,Some(1.0),Some(100000.0),"Maximum directory records","Most records that one directory file may contain.");
-file_setting!("people-connector.files.stale_minutes",Integer,15,Some(1.0),Some(1440.0),"Abandon in-progress exchanges after (minutes)","Mark an unfinished file exchange as abandoned after this time.");
+file_setting!(
+    "people-connector.files.enabled",
+    Boolean,
+    false,
+    None,
+    None,
+    "File exchange",
+    "Allow directory files to be imported and exported."
+);
+file_setting!(
+    "people-connector.files.json_enabled",
+    Boolean,
+    true,
+    None,
+    None,
+    "Directory JSON format",
+    "Allow directory files in JSON format."
+);
+file_setting!(
+    "people-connector.files.max_bytes",
+    Integer,
+    1048576,
+    Some(1.0),
+    Some(10485760.0),
+    "Maximum file bytes",
+    "Largest directory file that can be exchanged."
+);
+file_setting!(
+    "people-connector.files.max_records",
+    Integer,
+    1000,
+    Some(1.0),
+    Some(100000.0),
+    "Maximum directory records",
+    "Most records that one directory file may contain."
+);
+file_setting!(
+    "people-connector.files.stale_minutes",
+    Integer,
+    15,
+    Some(1.0),
+    Some(1440.0),
+    "Abandon in-progress exchanges after (minutes)",
+    "Mark an unfinished file exchange as abandoned after this time."
+);

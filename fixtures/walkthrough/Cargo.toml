@@ -32,3 +32,6 @@ bilibi-party-ids.workspace = true
 inventory.workspace = true
 jiff = "0.2.38"
 serde_json.workspace = true
+
+# KC4 browser proof: serves the real web host with a fixture-only directory port.
+axum.workspace = true

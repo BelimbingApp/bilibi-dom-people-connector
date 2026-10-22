@@ -220,3 +220,25 @@ BILIBI_ENV=development DATABASE_URL=postgres://... cargo run -p bilibi-people-co
 ```
 
 The example installs the Platform fixture, then uses `Connector::from_catalog` with an explicit fixture deployment catalog. Its provider reports distinct platform and workforce company IDs. Its adapter produces current, stale, unavailable, refused and interrupted reads. These fixtures never enter application inventory or production seeds. The regular service factory uses the same constructor with the installed catalog and `Providers::installed()`.
+
+## Directory file exchange
+
+Connection managers can export the synchronised directory and import JSON files for private review at `/integrations/people/files`. An import never changes People records, connector projections or checkpoints. Enable file exchange and Directory JSON format on that page, then choose the company's byte, record and unfinished-exchange limits. Import and export require an enabled native connection and a current Workforce mapping. Export also requires a current synchronised directory.
+
+| Company setting | Default | Range |
+| --- | --- | --- |
+| `people-connector.files.enabled` | `false` | Boolean |
+| `people-connector.files.json_enabled` | `true` | Boolean |
+| `people-connector.files.max_bytes` | 1048576 | 1–10485760 bytes |
+| `people-connector.files.max_records` | 1000 | 1–100000 records |
+| `people-connector.files.stale_minutes` | 15 | 1–1440 minutes |
+
+Private storage and expiry use Base Artifacts. Its installation byte limit also applies. Administrators configure its private folder and positive retention period in Operator Settings; connection management does not grant installation settings access. The page offers that link only with both settings and artifact management permissions.
+
+The immutable JSON envelope has exactly `format`, `tenant_id`, `platform_company_id`, `workforce_source_id`, `workforce_company_id` and `records`. Import accepts `people-directory-v1` and `people-directory-v2`; export chooses v2 when positions are present, otherwise v1. A record has exactly `kind`, `source_id`, `stable_id`, `workforce_company_id`, `name`, `code`, `email`, `supervisor_stable_id`, `observed_at` and `active`. The first version allows company and employee records. The second also allows positions, whose five additional fields are `parent_stable_id`, `version`, `vacant`, `assignments_incomplete` and `assignments`. Each of at most 500 assignments has exactly `source_id`, `stable_id`, `employee_stable_id` and `kind`. Names and codes obey the directory contract above; observations are RFC3339 instants. Duplicate JSON keys, extra fields, repeated kind/stable-ID pairs, foreign company/source identities and malformed facts are refused before storage.
+
+Receipts in `people_connector_file_exchanges` record both company axes, connection, direction, SHA-256, count, state, expiry and an opaque artifact ID. **SHA-256 covers the exact bytes**, together with connection and direction as the replay identity. An unexpired replay returns the original receipt without extending expiry. Different whitespace is a different import. Expired files create new receipts. Storage failures can retry the failed receipt; a pending operation refuses a concurrent retry. Once its company timeout passes, the next exchange of those bytes marks the old receipt abandoned, audits `people-connector.files.stale` and reserves a new receipt. Late publication of an abandoned receipt is refused; cleanup remains tracked by Artifacts.
+
+Every artifact creation and read rechecks company reach, the receipt's original connection, enabled native provider and current mapping. Connection removal preserves receipts with an empty connection reference. Recreating or remapping the connection cannot reopen earlier files. Managers may remove expired bytes after disconnecting. This action uses a confirmation and Base's bounded retention batch; receipt history remains. Downloads use the authenticated `DOWNLOADS` route `/integrations/people/files/{company_id}/{id}`, reauthorize each read and return an attachment with private/no-store and nosniff headers. Audit captures receipt IDs, artifact IDs, counts and fixed outcomes, never document content or filenames.
+
+Run the disposable-database file walkthrough with `cargo run -p bilibi-people-connector-walkthrough --example files`. Its fixture company port proves separate company axes even while the native directory port is not yet available. The separate `files-server` example serves the real Files page using that fixture port, with People mounted; the product registers no fixture provider.
