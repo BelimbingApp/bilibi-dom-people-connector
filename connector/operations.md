@@ -28,4 +28,4 @@ Call `Connector::run_doctor(scope, platform_company_id)`, `retention_policy`, `p
 
 The Operations page and retention remain available when People is absent. The doctor reports unavailable company identity, while cleanup operates on the connector's existing company-owned history.
 
-See [the connector contract](README.md), [file exchange](#keep-or-remove-records), and the [disposable walkthrough](../fixtures/walkthrough/src/operations.rs).
+See [the connector contract](README.md), [file exchange](README.md#directory-file-exchange), and the [disposable walkthrough](../fixtures/walkthrough/src/operations.rs).
