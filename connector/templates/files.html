@@ -1,0 +1,11 @@
+{# Bilimbi Connector.Web.FilesLive; fragments use shared UI controls. #}
+{% import "components.html" as ui %}
+{% import "feedback.html" as feedback %}
+{% call feedback::flash_group(messages=flash) %}{% endcall %}
+{% call ui::page(id="people-files") %}
+{% call ui::header() %}People file exchange{% endcall %}
+<a href="/integrations/people/connections">People connections</a>
+{{ selector }}
+{{ content }}
+{{ dialog }}
+{% endcall %}

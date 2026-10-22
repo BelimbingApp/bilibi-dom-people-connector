@@ -35,6 +35,11 @@
 //!
 //! See `README.md`.
 mod connections;
+mod files;
+mod file_format;
+mod file_store;
+mod files_web;
+pub use files::{FilePolicy, FileReceipt, FileSummary, FileExchange};
 mod contributions;
 mod sync;
 mod sync_store;
@@ -130,6 +135,18 @@ pub enum ConnectorError {
     /// A database or capture failure; never a refusal.
     #[error(transparent)]
     Failed(Error),
+    #[error("File exchange refused. Check the connection, file policy and private storage settings.")]
+    InvalidFile,
+    #[error("File exchange is disabled for this connection.")]
+    FileExchangeDisabled,
+    #[error("A file exchange is already in progress. Try again when it finishes.")]
+    FileExchangeInProgress,
+    #[error("This file exchange was abandoned. Try again.")]
+    FileExchangeAbandoned,
+    #[error("Synchronise the native connection before exporting directory files.")]
+    DirectoryUnavailable,
+    #[error("File exchange refused. Check the connection, file policy and private storage settings.")]
+    FileStorage(#[from] bilibi_artifacts::Error),
 }
 impl From<Error> for ConnectorError {
     fn from(error: Error) -> Self {
@@ -217,6 +234,7 @@ pub struct Connector {
     mutations: Arc<MutationBoundary>,
     settings: Arc<Settings>,
     ports: Arc<Ports>,
+    artifacts: Arc<bilibi_artifacts::Artifacts>,
     adapters: Adapters,
     registry: Registry,
 }
@@ -238,6 +256,7 @@ impl Connector {
             mutations: services.get("base/database.mutations")?,
             settings: services.get("base/settings.store")?,
             ports,
+            artifacts: services.get("base/artifacts.store")?,
             adapters: Adapters::from_catalog(catalog, modules)?,
             registry,
         })
@@ -437,6 +456,7 @@ impl Connector {
             .ok_or(ConnectorError::Disconnected)?;
         self.delete_credential(&mut tx, scope, &connection).await?;
         sync_store::remove(&mut tx, &connection).await?;
+        file_store::detach(&mut tx, scope.tenant(), connection.id).await?;
         connections::delete(&mut tx, connection).await?;
         tx.commit().await?;
         Ok(())
