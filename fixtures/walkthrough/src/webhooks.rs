@@ -258,7 +258,8 @@ pub async fn run(url: &str) -> Outcome {
         Credential::None,
     )?;
     let registry = Providers::installed().register(foreign)?;
-    let connector = Connector::from_catalog(&services, &catalog, &deployment, registry, ports)?;
+    let connector =
+        Connector::from_catalog(&services, &catalog, &deployment, registry, ports.clone())?;
     let handler = services.get::<WebhookService>(WEBHOOK_SERVICE)?;
     expect(
         connector
@@ -397,6 +398,90 @@ pub async fn run(url: &str) -> Outcome {
         ),
         "clearing a secret while intake is enabled is refused",
     )?;
+    let wrong_key = format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    );
+    for key in [None, Some(wrong_key)] {
+        let mut controlled_services = Services::default();
+        controlled_services.provide("base/database.pool", Arc::new(db.clone()))?;
+        controlled_services.provide(
+            "base/database.mutations",
+            services.get::<bilibi_database::MutationBoundary>("base/database.mutations")?,
+        )?;
+        controlled_services.provide(
+            "base/settings.store",
+            Arc::new(bilibi_base::settings::Settings::new(
+                bilibi_base::settings::Definitions::from_catalog(services.catalog()?)?,
+                bilibi_base::settings::Encryption::from_hex(key.as_deref()),
+                services.get::<bilibi_tenancy::PartyProofs>("base/tenancy.parties")?,
+            )),
+        )?;
+        let controlled = Arc::new(Connector::from_catalog(
+            &controlled_services,
+            &catalog,
+            &deployment,
+            Providers::installed(),
+            ports.clone(),
+        )?);
+        expect(
+            controlled.webhook_summary(&manager, 1).await?.secret_stored,
+            "summary remains masked with a missing or wrong installation key",
+        )?;
+        let before:Value=client.query_one("SELECT webhook_secret FROM people_connector_connections WHERE tenant_id=1 AND platform_company_id=1",&[]).await?.get(0);
+        expect(
+            controlled
+                .put_webhook_settings(
+                    &manager,
+                    1,
+                    WebhookSettingsUpdate {
+                        secret: Some(replacement.clone()),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .is_err(),
+            "missing or wrong installation key cannot overwrite a signing secret",
+        )?;
+        let after:Value=client.query_one("SELECT webhook_secret FROM people_connector_connections WHERE tenant_id=1 AND platform_company_id=1",&[]).await?.get(0);
+        expect(
+            before == after,
+            "failed secret rotation preserves the original ciphertext",
+        )?;
+        expect(
+            !Request::new(&secret)
+                .accepted(&WebhookService(controlled.clone()))
+                .await,
+            "missing or wrong installation key refuses machine verification",
+        )?;
+        let cleared = controlled
+            .put_webhook_settings(
+                &manager,
+                1,
+                WebhookSettingsUpdate {
+                    secret: Some(String::new()),
+                    enabled: Some(false),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        expect(
+            !cleared.secret_stored && !cleared.enabled,
+            "ciphertext can be cleared with intake disabled without decrypting it",
+        )?;
+        connector
+            .put_webhook_settings(
+                &manager,
+                1,
+                WebhookSettingsUpdate {
+                    secret: Some(secret.clone()),
+                    enabled: Some(true),
+                    ..Default::default()
+                },
+            )
+            .await?;
+    }
     let port_calls = PORT_CALLS.load(Ordering::SeqCst);
 
     let request = Request::new(&secret);
