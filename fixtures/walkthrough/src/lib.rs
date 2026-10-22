@@ -349,3 +349,7 @@ pub async fn run(url: &str) -> Result<()> {
 // KC4: file exchange proofs and the fixture-only directory port for browser interaction.
 mod files;
 pub use files::{file_walkthrough, FileCompanyPort};
+
+// KC6: connection backup and recovery proof, independent of product catalogs.
+mod backups;
+pub use backups::{backup_walkthrough, BackupCompanyPort};

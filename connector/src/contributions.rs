@@ -62,7 +62,7 @@ inventory::submit! {
             "people-connector-connector-006-backups",
             include_str!("../migrations/006-backups.sql"),
         )],
-        services: &[Service {
+        services: &[Service {id:crate::backups_web::PAGE_ID,factory:crate::backups_web::pages_service}, Service {
             id: SERVICE,
             factory: |services| {
                 // The adapter catalog is read here, as `base/ports` reads its
@@ -210,5 +210,19 @@ file_setting!(
 );
 
 // KC6: Bilimbi's backup policy; changes affect newly created receipts/previews.
-sync_policy!("people-connector.backup.retention_days",30,1,3650,"Backup retention (days)","Days a new connection backup remains available.");
-sync_policy!("people-connector.backup.preview_minutes",10,1,60,"Backup preview validity (minutes)","Minutes a restore preview remains valid.");
+sync_policy!(
+    "people-connector.backup.retention_days",
+    30,
+    1,
+    3650,
+    "Backup retention (days)",
+    "Days a new connection backup remains available."
+);
+sync_policy!(
+    "people-connector.backup.preview_minutes",
+    10,
+    1,
+    60,
+    "Backup preview validity (minutes)",
+    "Minutes a restore preview remains valid."
+);
