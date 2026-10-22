@@ -18,7 +18,8 @@ use bilibi_ui::{
     },
     params, Badge, BadgeKind, BuiltinColumn, Button, Cell, ColumnsOutcome, ConfirmDialog,
     EmptyState, Fact, Facts, Field, FlashMap, FlexRow, FlexTable, Form, Html, InputKind, Instant,
-    ListColumns, ListSpec, ListState, SecretInput, SortDir, StatusKind, TableEmpty,
+    ListColumns, ListSpec, ListState, PageCounts, Pagination, SecretInput, SortDir, StatusKind,
+    TableEmpty,
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -104,6 +105,12 @@ fn list(
             .collect(),
         default_sort: Some(columns[0].0.into()),
         param_prefix: prefix.into(),
+        page_sizes: if prefix.is_empty() {
+            vec![10, 25, 50, 100]
+        } else {
+            vec![25, 50, 100, 300]
+        },
+        default_page_size: if prefix.is_empty() { 10 } else { 25 },
         omit_defaults: true,
         ..Default::default()
     };
@@ -228,7 +235,18 @@ impl State {
                 self.webhook = self.pages.connector.webhook_summary(scope, id).await.ok();
             }
         }
+        self.clamp_pages();
         Ok(())
+    }
+    fn clamp_pages(&mut self) {
+        let pages = (self.companies.len() as u64).div_ceil(self.list.page_size);
+        self.list.clamp_to_last_page(pages, true);
+        let pages = self
+            .summary
+            .as_ref()
+            .map_or(0, |s| s.open_issues.len() as u64)
+            .div_ceil(self.issues_list.page_size);
+        self.issues_list.clamp_to_last_page(pages, true);
     }
     fn selected(&self) -> Option<&Company> {
         self.companies
@@ -258,6 +276,20 @@ impl State {
                 if let ColumnsOutcome::Sort(key) = columns.handle(&values) {
                     list.next_sort(&key);
                 }
+                return Ok(());
+            }
+            "page" | "issues_page" | "filters" | "issues_filters" => {
+                let list = if event.starts_with("issues_") {
+                    &mut self.issues_list
+                } else {
+                    &mut self.list
+                };
+                if event.ends_with("filters") {
+                    list.apply_filters(&params::form_values(payload, "filters"));
+                } else {
+                    list.put_page(values.get("page").map(String::as_str));
+                }
+                self.clamp_pages();
                 return Ok(());
             }
             "select_company" => {
@@ -1260,6 +1292,12 @@ fn table(
     rows: Vec<FlexRow>,
     empty: &str,
 ) -> Result<Html> {
+    let counts = PageCounts::new(list.page, list.page_size, rows.len() as u64);
+    let rows = rows
+        .into_iter()
+        .skip(((counts.page - 1) * counts.page_size) as usize)
+        .take(counts.page_size as usize)
+        .collect();
     let mut table = FlexTable::new(id, columns.flex_columns(), rows)
         .sorted(list.sort_by.as_deref(), list.sort_dir);
     table.zoom = columns.zoom;
@@ -1269,7 +1307,23 @@ fn table(
     table.caption = caption;
     table.actions = true;
     table.empty = Some(TableEmpty::Content(Html::text(empty)));
-    render(table)
+    let mut html = render(table)?;
+    if counts.total_pages > 1 {
+        let pager_id = format!("{id}-pagination");
+        let mut pager = Pagination::new(&pager_id, counts, &list.spec().page_sizes);
+        pager.page_event = if event == "grid" {
+            "page"
+        } else {
+            "issues_page"
+        };
+        pager.filters_event = if event == "grid" {
+            "filters"
+        } else {
+            "issues_filters"
+        };
+        html.push(&render(pager)?);
+    }
+    Ok(html)
 }
 #[derive(Template)]
 #[template(path = "connections.html")]

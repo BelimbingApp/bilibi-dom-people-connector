@@ -283,7 +283,7 @@ The receipt table is `people_connector_backups`, added by migration `people-conn
 
 ## People connections page
 
-Open **Administration › System › Integrations › People connections** to choose a company, connect its provider and review synchronisation. The companies FlexTable shows connection state, provider, both company identities and whether a credential is stored. Select a company to change its connection. Both tables support column settings, sorting and compact rows.
+Open **Administration › System › Integrations › People connections** to choose a company, connect its provider and review synchronisation. The companies FlexTable shows connection state, provider, both company identities and whether a credential is stored. Select a company to change its connection. Both tables support column settings, sorting, compact rows and paging. Company rows start at 10 per page; the selected company stays selected while paging.
 
 The picker uses Core Company’s unarchived company directory; that projection does not currently expose an active-status filter. Viewing requires `people-connector.connections.view`. Provider choice, credentials, enable/disable, removal, synchronisation, issue resolution and policy changes require `people-connector.connections.manage` with reach to the selected company. Every write-shaped event checks access again, including opening a removal confirmation. The facade repeats its own checks under the company lock. Read-only viewers see the connection facts and review information with the write controls withheld.
 

@@ -195,6 +195,21 @@ pub async fn connections_page_walkthrough() -> Result<()> {
         configured.html.contains("people/native · 1001"),
         "both company axes remain distinct",
     )?;
+    require(
+        configured.html.contains("Showing 1 to 10 of 62 results"),
+        "company table is bounded to ten rows",
+    )?;
+    let second_page = event(page.as_mut(), &manager, json!({"type":"page", "page":"2"})).await?;
+    require(
+        second_page.query.get("page").is_some_and(|v| v == "2")
+            && second_page
+                .query
+                .get("company_id")
+                .is_some_and(|v| v == "1")
+            && second_page.html.contains("Showing 11 to 20 of 62 results"),
+        "paging preserves the selected company and address",
+    )?;
+    event(page.as_mut(), &manager, json!({"type":"page", "page":"1"})).await?;
     let enabled = event(
         page.as_mut(),
         &manager,
