@@ -345,3 +345,8 @@ pub async fn run(url: &str) -> Result<()> {
     .await;
     Ok(())
 }
+
+// KC3: an independent signed-receipt proof on a disposable database.
+#[path = "webhooks.rs"]
+mod webhook_proof;
+pub use webhook_proof::run as run_webhooks;
