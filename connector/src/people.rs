@@ -120,6 +120,17 @@ pub(crate) async fn company<'a>(
         ),
         FreshnessShape::Unavailable(reason) => Freshness::Unavailable(reason),
     };
+    // A port may report a different workforce identity, but it cannot change
+    // which Core company this scope asked about. Never follow that other
+    // platform axis into another connection's status or writes.
+    if matches!(freshness, Freshness::Current)
+        && answer
+            .value
+            .as_ref()
+            .is_some_and(|company| company.platform_company_id != company_id)
+    {
+        return Err(ConnectorError::MappingChanged);
+    }
     Ok(Read {
         value: answer.value,
         freshness,

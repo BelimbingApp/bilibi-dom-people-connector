@@ -5,11 +5,9 @@
 //! and the encrypted company setting that holds a provider credential.
 //! Routes, the page writes and the other eighteen settings land with their
 //! slices (port plan rows KC1 to KC6).
-use crate::adapters::Adapters;
 use crate::contracts::Providers;
 use crate::{Connector, MODULE, SERVICE};
 use bilibi_authz::{CapabilityDefinition as C, VocabularyContribution, VOCABULARY};
-use bilibi_database::{Db, MutationBoundary};
 use bilibi_menu::{MenuItem, Requirement, ITEMS};
 use bilibi_module_registry::{Catalog, Contribution, Layer, Module, Provenance, Service};
 use bilibi_ports::Ports;
@@ -54,6 +52,9 @@ inventory::submit! {
         migrations: &[(
             "people-connector-connector-001-connections",
             include_str!("../migrations/001-connections.sql"),
+        ), (
+            "people-connector-connector-002-sync",
+            include_str!("../migrations/002-sync.sql"),
         )],
         services: &[Service {
             id: SERVICE,
@@ -62,14 +63,10 @@ inventory::submit! {
                 // own: `Services::catalog` is set only after every factory ran.
                 let modules = bilibi_module_registry::discover()?;
                 let catalog = Catalog::discover(&modules)?;
-                Ok(Arc::new(Connector {
-                    db: services.get::<Db>("base/database.pool")?.as_ref().clone(),
-                    mutations: services.get::<MutationBoundary>("base/database.mutations")?,
-                    settings: services.get("base/settings.store")?,
-                    ports: services.get::<Ports>(bilibi_ports::SERVICE)?,
-                    adapters: Adapters::from_catalog(&catalog, &modules)?,
-                    registry: Providers::installed(),
-                }))
+                Ok(Arc::new(Connector::from_catalog(
+                    services, &catalog, &modules, Providers::installed(),
+                    services.get::<Ports>(bilibi_ports::SERVICE)?,
+                )?))
             },
         }],
     }
@@ -114,3 +111,38 @@ inventory::submit! { Contribution::new(DEFINITIONS, CREDENTIAL_KEY, provenance!(
     validator: Some(bilibi_settings::Validator { accepts: credential_valid, message: "Enter a credential of at most 4096 characters." }),
     editor: None,
 })) }
+
+// Bilimbi Connector.Contributions: the three company sync policies.
+macro_rules! sync_policy {
+    ($key:literal,$default:literal,$min:literal,$max:literal,$label:literal,$help:literal) => {
+        inventory::submit! { Contribution::new(DEFINITIONS,$key,provenance!(),&Setting::Definition(Definition {
+            value_type: ValueType::Integer, scopes: &[ScopeKind::Company], default: || serde_json::json!($default),
+            nullable: false, encrypted: false, minimum: Some($min as f64), maximum: Some($max as f64), validator: None,
+            editor: Some(bilibi_settings::Editor { group: "People integrations",label:$label,help:$help,capability:Some(MANAGE),reveal_duration_ms:5000 }),
+        })) }
+    };
+}
+sync_policy!(
+    "people-connector.sync.page_limit",
+    250,
+    1,
+    1000,
+    "Synchronisation page size",
+    "Most directory records the provider returns on one page."
+);
+sync_policy!(
+    "people-connector.sync.max_age_minutes",
+    1440,
+    5,
+    43200,
+    "Synchronised data maximum age",
+    "Minutes after the last completed pass before synchronised records are stale."
+);
+sync_policy!(
+    "people-connector.sync.run_timeout_minutes",
+    30,
+    1,
+    1440,
+    "Synchronisation run timeout",
+    "Minutes a pass may run before its outcome is recorded as unknown."
+);

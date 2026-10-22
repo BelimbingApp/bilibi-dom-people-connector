@@ -7,11 +7,7 @@ operations and backups. This README is the owner contract; the Bilimbi
 source it ports is
 [`connector/docs/README.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/main/connector/docs/README.md).
 
-This is the scaffold slice (KS0 of the port plan): contracts, connections,
-the credential, status and the read-port seam. KC1 adds the sync engine
-(`synchronise`, `workforce`, `sync_summary`, `resolve_issue`,
-`put_sync_policy`, `request_port`), KC2 the connections page, KC3 inbound
-notifications, KC4 file exchange, KC5 the doctor and retention, KC6 backups.
+Connections and synchronisation are available through `Connector`. The connections page (KC2), inbound notifications (KC3), file exchange (KC4), operations (KC5) and backups (KC6) follow separately.
 
 ## Contracts
 
@@ -149,7 +145,7 @@ provider it serves, from a module that depends on
 at application start: Bilibi validates the catalog at boot and the facade
 reads it once (`Adapters::from_catalog`) when its service is installed.
 Until an adapter serves a provider, a pass for it is refused with
-`adapter_unavailable` (KC1). `people_connector/native_people_adapter`
+`ConnectorError::AdapterUnavailable`. `people_connector/native_people_adapter`
 contributes the native provider's adapter (KA1).
 
 ## Menu and capabilities
@@ -161,3 +157,66 @@ contributed role, so an administrator grants them. The menu leaf
 (`admin.system.integrations.people-connections`, order 50, route
 `/integrations/people/connections`) carries the view capability; the route
 enforces it again when the page lands (KC2).
+
+## Synchronisation
+
+An enabled connection can copy its provider's directory into Connector-owned records. It never changes People records.
+
+For example, synchronise a company with a key minted for that request:
+
+```rust,ignore
+let run = connector.synchronise(scope, company_id, "directory:request-1", SyncOptions::default()).await?;
+let directory = connector.workforce(scope, company_id).await?;
+let summary = connector.sync_summary(scope, company_id).await?;
+```
+
+Repeating the key returns the recorded `SyncRun`, including a running or unsuccessful outcome. It does not read the adapter again. Use a new key for a new attempt. Keys contain 1–100 ASCII letters, digits, dots, underscores, colons or hyphens, beginning with a letter or digit. `SyncOptions { full: true, ..Default::default() }` requests a complete read. `expected_checkpoint_version` fences recovery requests; zero means no checkpoint.
+
+The first pass is `bootstrap`. Later passes are `incremental`, with adapter requests using `Pass::Changes` and the last resume cursor. The employee-directory stream contains company and employee records. When the provider declares `organization_directory`, the engine also reads that stream. Every page must be current and obey the page limit and cursor contract. A repeated cursor, adapter refusal or panic records a fixed failure code. No adapter error text is stored.
+
+**All streams are read before any records or checkpoints change.** The engine then locks the company and connection again, rechecks authority, mapping, connection identity and checkpoint, and applies the pass in one audited transaction. A concurrent connection edit refuses the result; a moved checkpoint fails it. A second pass cannot run while one is in flight. Both a unique partial database index and the connection lock enforce this.
+
+| Outcome | Effect |
+| --- | --- |
+| `Succeeded` | Accepted records apply and the checkpoint advances once |
+| `Stale`, `Unavailable`, `Failed` | No projection or checkpoint changes |
+| `Refused` | The connection changed, or every record was refused; checkpoint stays put |
+| `Unknown` | The run exceeded the company's timeout; no late result can apply |
+
+A timed-out pass appears unknown in summaries immediately. The next synchronisation persists that outcome and opens `unknown_outcome`; an adapter read that reaches the timeout does so itself. The same key keeps returning that outcome.
+
+### Records and issues
+
+`Page.entries` contains JSON serialised from `WorkforceRecord` or `Deactivation`. `RecordKind` is `company`, `employee` or `position`. A record carries its source, stable ID, workforce company ID, name, code, observation time and active state. Optional employee fields are email and supervisor stable ID. Position fields are parent stable ID, positive version, vacancy, incomplete-assignment flag and up to 500 unique `AssignmentRecord` facts. Non-position records leave these organisation fields empty. Times use RFC3339 UTC instants. A deactivation has `kind`, `source_id`, `stable_id`, `observed_at` and `deactivated: true`; only changes pages may carry one.
+
+Foreign sources, another workforce company, undeclared kinds, malformed records and unknown deactivation references become reconciliation issues. A refused identity still counts as present in a full read, so it cannot accidentally deactivate its existing record. Older observations are counted as superseded. Identical content is unchanged; assignment order does not change the content hash. A later valid record resolves its earlier refusal. If every record is refused, `feed_refused` opens and the checkpoint stays put.
+
+A bootstrap or a changes pass whose every page declares `snapshot: true` deactivates missing company and employee records. Positions deactivate only when their complete stream fits in **one page**. An unavailable organisation stream leaves all positions untouched, applies the directory stream and opens `organisation_unavailable`. Undeclared organisation with active positions opens the same issue. A successful organisation read resolves it. Empty full reads open `empty_bootstrap`. Deactivation retains records and People history stays with People.
+
+`resolve_issue(scope, company_id, issue_id)` marks an open issue of that company's current connection resolved. The next occurrence reopens it and increments its count. Summary lists at most 50 open issues.
+
+### Freshness and policy
+
+`workforce` returns `ReadResult<Vec<WorkforceRecord>>`, the Connector's copy of the People read-result contract: a current value, a stale value with its watermark, or no value with an unavailable reason. Disabled or absent connections are `disconnected`; an enabled connection without a checkpoint is `never_synchronised`. Freshness uses the oldest page watermark across all streams and the company's maximum age. `sync_summary` returns that freshness, checkpoint version and watermark, last run, open issues and policy. Both reads ask Workforce for the current company mapping first.
+
+| Company setting | Default | Inclusive range |
+| --- | --- | --- |
+| `people-connector.sync.page_limit` | 250 | 1–1,000 records |
+| `people-connector.sync.max_age_minutes` | 1,440 | 5–43,200 minutes |
+| `people-connector.sync.run_timeout_minutes` | 30 | 1–1,440 minutes |
+
+`put_sync_policy(scope, company_id, SyncPolicyUpdate { .. })` accepts partial updates. Every supplied field is validated before any setting changes. The shared settings editor also exposes these values to connection managers.
+
+Every write requires `people-connector.connections.manage`, a writable company and a locked connection when one exists. `request_port` checks a provider declaration and enabled connection but always refuses: callers cannot obtain an adapter or activate writes through it. Unsupported direction or capability is `Unsupported`; a disabled or different provider is `Disconnected`; an enabled declared port is `AdapterUnavailable`. Only `synchronise` invokes an adapter.
+
+Migration `people-connector-connector-002-sync` adds `people_connector_sync_checkpoints`, `people_connector_sync_runs`, `people_connector_workforce_records` and `people_connector_reconciliation_issues`. Their foreign keys bind both tenant and connection. A mapping or provider change clears the old records and checkpoint, preserving runs and issues. Removal audits deletion of all sync rows before deleting the connection.
+
+## Proving a sync change
+
+Run the database walkthrough on a new disposable database:
+
+```sh
+BILIBI_ENV=development DATABASE_URL=postgres://... cargo run -p bilibi-people-connector-walkthrough --example sync
+```
+
+The example installs the Platform fixture, then uses `Connector::from_catalog` with an explicit fixture deployment catalog. Its provider reports distinct platform and workforce company IDs. Its adapter produces current, stale, unavailable, refused and interrupted reads. These fixtures never enter application inventory or production seeds. The regular service factory uses the same constructor with the installed catalog and `Providers::installed()`.
