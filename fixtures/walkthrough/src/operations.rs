@@ -386,7 +386,7 @@ pub async fn operations_walkthrough() -> Result<()> {
         pending == 1,
         "pending file exchanges remain regardless of age",
     )?;
-    let audit:Value=client.query_one("SELECT payload FROM base_audit_actions WHERE tenant_id=1 AND event='people-connector.doctor' ORDER BY id DESC LIMIT 1",&[]).await?.get(0);
+    let audit:Value=client.query_one("SELECT payload FROM base_audit_actions WHERE tenant_id=1 AND event='people-connector.doctor' AND payload ? 'checks' ORDER BY id DESC LIMIT 1",&[]).await?.get(0);
     require(
         audit["checks"].as_array().is_some_and(|checks| {
             checks.iter().all(|c| {
