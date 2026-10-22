@@ -91,7 +91,7 @@ impl<T> Read<T> {
 /// provider's own refusals are `NotFound` (a company the scope cannot see) and
 /// `Unauthorized`; a shape the two sides disagree on is a failure.
 pub(crate) async fn company<'a>(
-    ports: &Ports,
+    ports: &'a Ports,
     client: impl Into<PortClient<'a>>,
     scope: &'a Scope,
     company_id: i64,
