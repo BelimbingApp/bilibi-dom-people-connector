@@ -412,6 +412,7 @@ pub(crate) async fn action(
         details,
         false,
     )
-    .await?;
+    .await
+    .map_err(|_| ConnectorError::AuditUnavailable)?;
     Ok(())
 }

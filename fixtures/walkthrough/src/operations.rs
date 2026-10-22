@@ -133,6 +133,19 @@ pub async fn operations_walkthrough() -> Result<()> {
             .any(|c| c.code == "configuration" && c.title == "No connection configured"),
         "unconfigured company is a finding",
     )?;
+    client.batch_execute("CREATE FUNCTION kc5_audit_hold() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture audit hold'; END $$; CREATE TRIGGER kc5_audit_hold BEFORE INSERT ON base_audit_actions FOR EACH ROW WHEN (NEW.event='people-connector.doctor') EXECUTE FUNCTION kc5_audit_hold()").await?;
+    require(
+        matches!(
+            connector.run_doctor(&manager, 1).await,
+            Err(ConnectorError::AuditUnavailable)
+        ),
+        "doctor fails closed when audit cannot record its findings",
+    )?;
+    client
+        .batch_execute(
+            "DROP TRIGGER kc5_audit_hold ON base_audit_actions; DROP FUNCTION kc5_audit_hold()",
+        )
+        .await?;
     let p = connector.retention_policy(&manager, 1).await?;
     require(
         p.sync_days.is_none()

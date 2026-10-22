@@ -146,6 +146,8 @@ pub enum ConnectorError {
     WebhookSecretMissing,
     #[error("The checkpoint changed. Review it and try again.")]
     CheckpointMoved,
+    #[error("Audit is unavailable. Restore audit storage and retry.")]
+    AuditUnavailable,
     #[error("Enter a whole number within the stated range, or clear a retention period to keep records.")]
     InvalidRetentionPolicy,
     #[error("Receipt kept because file cleanup failed. Check private storage settings and retry.")]
