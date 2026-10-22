@@ -62,7 +62,7 @@ inventory::submit! {
             "people-connector-connector-006-backups",
             include_str!("../migrations/006-backups.sql"),
         )],
-        services: &[Service {id:crate::backups_web::PAGE_ID,factory:crate::backups_web::pages_service}, Service {
+        services: &[Service {
             id: SERVICE,
             factory: |services| {
                 // The adapter catalog is read here, as `base/ports` reads its
@@ -74,7 +74,7 @@ inventory::submit! {
                     services.get::<Ports>(bilibi_ports::SERVICE)?,
                 )?))
             },
-        }, Service {id:crate::files_web::PAGE_ID,factory:crate::files_web::pages_service}, Service {id:crate::files_web::DOWNLOAD_ID,factory:crate::files_web::download_service}],
+        }, Service {id:crate::backups_web::PAGE_ID,factory:crate::backups_web::pages_service}, Service {id:crate::files_web::PAGE_ID,factory:crate::files_web::pages_service}, Service {id:crate::files_web::DOWNLOAD_ID,factory:crate::files_web::download_service}],
     }
 }
 
