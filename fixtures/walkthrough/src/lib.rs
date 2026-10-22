@@ -346,6 +346,10 @@ pub async fn run(url: &str) -> Result<()> {
     Ok(())
 }
 
+// KC4: file exchange proofs and the fixture-only directory port for browser interaction.
+mod files;
+pub use files::{file_walkthrough, FileCompanyPort};
+
 // KC3: an independent signed-receipt proof on a disposable database.
 #[path = "webhooks.rs"]
 mod webhook_proof;

@@ -405,6 +405,10 @@ pub async fn run(url: &str) -> Outcome {
     );
     for key in [None, Some(wrong_key)] {
         let mut controlled_services = Services::default();
+        controlled_services.provide(
+            "base/artifacts.store",
+            services.get::<bilibi_base::artifacts::Artifacts>("base/artifacts.store")?,
+        )?;
         controlled_services.provide("base/database.pool", Arc::new(db.clone()))?;
         controlled_services.provide(
             "base/database.mutations",

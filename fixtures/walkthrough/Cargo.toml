@@ -33,6 +33,9 @@ inventory.workspace = true
 jiff = "0.2.38"
 serde_json.workspace = true
 
+# KC4 browser proof: serves the real web host with a fixture-only directory port.
+axum.workspace = true
+
 # KC3 signed receipt proof. No signing secret or raw delivery is logged.
 hmac.workspace = true
 sha2.workspace = true

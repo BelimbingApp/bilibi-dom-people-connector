@@ -89,8 +89,8 @@ pub(crate) async fn save(
 async fn delete_all(tx: &mut MutationTransaction<'_>, table: Table, c: &Connection) -> Result<()> {
     let tenant = c.tenant_id;
     let id = c.id;
-    // An unsynchronised connection has no projection rows. A mutate with no
-    // Changes poisons the transaction, so decide this no-op before mutating.
+    // The caller holds the connection lock. MutationBoundary refuses an empty
+    // Change set, so decide this no-op before entering mutate.
     if tx
         .sql()
         .query_opt(

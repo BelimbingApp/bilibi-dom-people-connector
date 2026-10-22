@@ -46,7 +46,7 @@ inventory::submit! {
         id: MODULE,
         layer: Layer::Domains,
         dependencies: &[
-            "base/audit", "base/authz", "base/database", "base/integration", "base/menu", "base/module_registry", "base/party_ids",
+            "base/artifacts", "base/audit", "base/authz", "base/database", "base/datetime", "base/integration", "base/locale", "base/ui", "base/menu", "base/module_registry", "base/party_ids",
             "base/ports", "base/settings", "base/tenancy", "core/company",
         ],
         migrations: &[(
@@ -58,6 +58,9 @@ inventory::submit! {
         ), (
             "people-connector-connector-003-webhooks",
             include_str!("../migrations/003-webhooks.sql"),
+        ), (
+            "people-connector-connector-004-file-exchanges",
+            include_str!("../migrations/004-file-exchanges.sql"),
         )],
         services: &[Service {
             id: SERVICE,
@@ -76,7 +79,7 @@ inventory::submit! {
             factory: |services| Ok(Arc::new(bilibi_integration::webhooks::WebhookService(
                 services.get::<Connector>(SERVICE)?,
             ))),
-        }],
+        }, Service {id:crate::files_web::PAGE_ID,factory:crate::files_web::pages_service}, Service {id:crate::files_web::DOWNLOAD_ID,factory:crate::files_web::download_service}],
     }
 }
 
@@ -166,4 +169,60 @@ sync_policy!(
     1440,
     "Synchronisation run timeout",
     "Minutes a pass may run before its outcome is recorded as unknown."
+);
+
+// KC4: Bilimbi's five company file-exchange settings.
+macro_rules! file_setting {
+    ($key:literal,$kind:ident,$default:expr,$min:expr,$max:expr,$label:literal,$help:literal) => {
+        inventory::submit! { Contribution::new(DEFINITIONS,$key,provenance!(),&Setting::Definition(Definition {
+            value_type:ValueType::$kind,scopes:&[ScopeKind::Company],default:||serde_json::json!($default),
+            nullable:false,encrypted:false,minimum:$min,maximum:$max,validator:None,
+            editor:Some(bilibi_settings::Editor{group:"People integrations",label:$label,help:$help,capability:Some(MANAGE),reveal_duration_ms:5000}),
+        })) }
+    };
+}
+file_setting!(
+    "people-connector.files.enabled",
+    Boolean,
+    false,
+    None,
+    None,
+    "File exchange",
+    "Allow directory files to be imported and exported."
+);
+file_setting!(
+    "people-connector.files.json_enabled",
+    Boolean,
+    true,
+    None,
+    None,
+    "Directory JSON format",
+    "Allow directory files in JSON format."
+);
+file_setting!(
+    "people-connector.files.max_bytes",
+    Integer,
+    1048576,
+    Some(1.0),
+    Some(10485760.0),
+    "Maximum file bytes",
+    "Largest directory file that can be exchanged."
+);
+file_setting!(
+    "people-connector.files.max_records",
+    Integer,
+    1000,
+    Some(1.0),
+    Some(100000.0),
+    "Maximum directory records",
+    "Most records that one directory file may contain."
+);
+file_setting!(
+    "people-connector.files.stale_minutes",
+    Integer,
+    15,
+    Some(1.0),
+    Some(1440.0),
+    "Abandon in-progress exchanges after (minutes)",
+    "Mark an unfinished file exchange as abandoned after this time."
 );
