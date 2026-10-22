@@ -711,6 +711,7 @@ fn button(id: &str, event: &str, label: &str, working: &str, value: Option<&str>
         id,
         event,
         working,
+        class: "whitespace-nowrap",
         name: if value.is_some() { "id" } else { "" },
         value: value.unwrap_or(""),
         body: Html::text(label),
