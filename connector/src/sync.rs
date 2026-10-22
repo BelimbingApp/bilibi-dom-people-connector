@@ -55,6 +55,11 @@ fn key_valid(key: &str) -> bool {
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || b"._:-".contains(&c))
 }
+// Bilimbi stores observations as UTC microseconds. Truncate before comparing,
+// so PostgreSQL rounding cannot change which observation wins.
+fn usec(at: Timestamp) -> Timestamp {
+    Timestamp::from_microsecond(at.as_microsecond()).expect("microseconds of a valid timestamp")
+}
 fn expired(run: &SyncRun, policy: SyncPolicy) -> bool {
     run.state == RunState::Running
         && Timestamp::now().as_second() - run.started_at.as_second()
@@ -602,10 +607,10 @@ async fn read_pages(
         }
         match page.freshness {
             Freshness::Current => {}
-            Freshness::Stale(at) => return Err(Outcome::Stale(at)),
+            Freshness::Stale(at) => return Err(Outcome::Stale(usec(at))),
             Freshness::Unavailable(_) => return Err(Outcome::Unavailable),
         }
-        as_of = Some(as_of.map_or(page.as_of, |a: Timestamp| a.min(page.as_of)));
+        as_of = Some(as_of.map_or(usec(page.as_of), |a: Timestamp| a.min(usec(page.as_of))));
         snapshot &= page.snapshot;
         entries.extend(page.entries);
         pages += 1;
@@ -770,16 +775,19 @@ enum Entry {
 fn classify(raw: Value, c: &Connection, p: &Provider) -> std::result::Result<Entry, &'static str> {
     let id = identity(&raw).ok_or("invalid_record")?;
     let (entry, company) = if raw.get("deactivated") == Some(&json!(true)) {
-        let change: Deactivation = serde_json::from_value(raw).map_err(|_| "invalid_record")?;
+        let mut change: Deactivation = serde_json::from_value(raw).map_err(|_| "invalid_record")?;
         if !change.valid() {
             return Err("invalid_record");
         }
+        change.observed_at = usec(change.observed_at);
         (Entry::Deactivation(change), c.workforce_company_id)
     } else {
-        let record: WorkforceRecord = serde_json::from_value(raw).map_err(|_| "invalid_record")?;
+        let mut record: WorkforceRecord =
+            serde_json::from_value(raw).map_err(|_| "invalid_record")?;
         if !record.valid() {
             return Err("invalid_record");
         }
+        record.observed_at = usec(record.observed_at);
         let company = record.workforce_company_id;
         (Entry::Record(Box::new(record)), company)
     };
