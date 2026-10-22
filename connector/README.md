@@ -3,11 +3,11 @@
 `people_connector/connector` owns the integration contracts, each company's
 provider connection, directory synchronisation into Connector-owned
 projections, signed inbound notifications and private directory file exchange.
-Operations and backups follow in later slices. This README is the owner contract; the Bilimbi
+Connection health and record retention are also available. Backups follow in a later slice. This README is the owner contract; the Bilimbi
 source it ports is
 [`connector/docs/README.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/main/connector/docs/README.md).
 
-Connections, synchronisation, signed inbound notifications and file exchange are available through `Connector`. The Files page is at `/integrations/people/files`. The connections page (KC2), operations (KC5) and backups (KC6) follow separately.
+Connections, synchronisation, signed inbound notifications and file exchange are available through `Connector`. The Files page is at `/integrations/people/files`. The Operations page is at `/integrations/people/operations`; see [health and retention](operations.md). The connections page (KC2) and backups (KC6) follow separately.
 
 The [native notification contract](webhooks.md) describes `POST /webhooks/people-native`, the manager-only policy API and replay rules. Bilibi keeps the three company webhook policy values on its connection row, with the secret encrypted through `Settings::seal_owned`, because an inbound machine has no login scope. The Bilimbi `people-connector.webhook.*` Settings keys are not used or registered. The sender only verifies and records a receipt; it never reads the People directory or enqueues synchronisation.
 

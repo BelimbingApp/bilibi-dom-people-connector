@@ -354,3 +354,7 @@ pub use files::{file_walkthrough, FileCompanyPort};
 #[path = "webhooks.rs"]
 mod webhook_proof;
 pub use webhook_proof::run as run_webhooks;
+
+// KC5 doctor and retention running-system proof.
+mod operations;
+pub use operations::operations_walkthrough;

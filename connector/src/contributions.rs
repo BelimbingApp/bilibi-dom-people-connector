@@ -240,8 +240,43 @@ macro_rules! retention_setting {
         })) }
     };
 }
-retention_setting!("sync_days",null,true,3650,"Sync runs (days)","Keep sync history for this many days; blank keeps records.");
-retention_setting!("webhook_days",null,true,3650,"Webhook deliveries (days)","Keep delivery history for this many days; blank keeps records.");
-retention_setting!("file_days",null,true,3650,"File receipts (days)","Keep expired file receipts for this many days; blank keeps records.");
-retention_setting!("batch_size",100,false,1000,"Batch size per record type","Most records of each type removed by one purge.");
-retention_setting!("retry_minutes",60,false,1440,"Retry delay (minutes)","Wait this many minutes before retrying a failed removal.");
+retention_setting!(
+    "sync_days",
+    Value::Null,
+    true,
+    3650,
+    "Sync runs (days)",
+    "Keep sync history for this many days; blank keeps records."
+);
+retention_setting!(
+    "webhook_days",
+    Value::Null,
+    true,
+    3650,
+    "Webhook deliveries (days)",
+    "Keep delivery history for this many days; blank keeps records."
+);
+retention_setting!(
+    "file_days",
+    Value::Null,
+    true,
+    3650,
+    "File receipts (days)",
+    "Keep expired file receipts for this many days; blank keeps records."
+);
+retention_setting!(
+    "batch_size",
+    100,
+    false,
+    1000,
+    "Batch size per record type",
+    "Most records of each type removed by one purge."
+);
+retention_setting!(
+    "retry_minutes",
+    60,
+    false,
+    1440,
+    "Retry delay (minutes)",
+    "Wait this many minutes before retrying a failed removal."
+);

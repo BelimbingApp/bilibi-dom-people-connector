@@ -35,10 +35,10 @@
 //!
 //! See `README.md`.
 mod doctor;
-mod retention;
 mod operations_web;
+mod retention;
 pub use doctor::{DoctorReport, Finding, FindingState};
-pub use retention::{RetentionPolicy, RetentionRecord, PurgeResult, RETENTION_FIELDS};
+pub use retention::{PurgeResult, RetentionPolicy, RetentionRecord, RETENTION_FIELDS};
 mod connections;
 mod file_format;
 mod file_store;
