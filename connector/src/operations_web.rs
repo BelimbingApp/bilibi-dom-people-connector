@@ -392,12 +392,12 @@ impl State {
                     items: vec![
                         Fact {
                             title: "Removed",
-                            value: Html::text(result.deleted.len().to_string()),
+                            value: Html::text(&result.deleted.len().to_string()),
                             ..Default::default()
                         },
                         Fact {
                             title: "Failed",
-                            value: Html::text(result.errors.len().to_string()),
+                            value: Html::text(&result.errors.len().to_string()),
                             ..Default::default()
                         },
                     ],
@@ -489,7 +489,12 @@ impl State {
     }
 }
 fn message(error: &crate::ConnectorError) -> String {
-    match error{crate::ConnectorError::Failed(_)=>"Record kept because the operation failed. Check database and audit storage, then retry.".into(),_=>error.to_string()}
+    match error {
+        crate::ConnectorError::Unauthorized => "A connection manager must have permission to manage this company.".into(),
+        crate::ConnectorError::NotFound => "Select an accessible active company.".into(),
+        crate::ConnectorError::Failed(_) => "Record kept because the operation failed. Check database and audit storage, then retry.".into(),
+        _ => error.to_string(),
+    }
 }
 fn render(template: impl Template) -> Result<Html> {
     Html::render(&template).map_err(|_| Error::Internal)

@@ -1,15 +1,17 @@
 {# Bilimbi Connector.Web.OperationsLive health and retention sections #}
 {% import "components.html" as ui %}
-{% call ui::card(id="people-doctor",role="region",labelledby="people-doctor-heading") %}
+{% call ui::card(id="people-doctor",class="mt-5",role="region",labelledby="people-doctor-heading") %}
 {% call ui::section_heading(id="people-doctor-heading",title="Connection health",actions=run) %}
 {% endcall %}
+<div class="flex flex-wrap gap-3 mb-3">
 {% call ui::action_link(id="people-operations-backups",icon="manage",title="Backup and recovery",href="/integrations/people/backups?company_id={}"|format(company)) %}Backup and recovery{% endcall %}
 {% call ui::action_link(id="people-operations-connections",icon="manage",title="People connections",href="/integrations/people/connections?company_id={}"|format(company)) %}People connections{% endcall %}
 {% call ui::action_link(id="people-operations-files",icon="manage",title="File exchange",href="/integrations/people/files?company_id={}"|format(company)) %}File exchange{% endcall %}
+</div>
 {{ facts }}
 {{ findings }}
 {% endcall %}
-{% call ui::card(id="people-retention",role="region",labelledby="people-retention-heading") %}
+{% call ui::card(id="people-retention",class="mt-5",role="region",labelledby="people-retention-heading") %}
 {% call ui::section_heading(id="people-retention-heading",title="Record retention",description="Unset periods keep records. Changes apply to the next purge.",actions=request) %}
 {% endcall %}
 {{ policy }}
