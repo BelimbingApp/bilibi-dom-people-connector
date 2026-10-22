@@ -207,6 +207,13 @@ impl State {
                 }
             },
             "save_policy" => {
+                // A delayed inline edit belongs to the company where editing began.
+                // The form's ID can refuse a stale event; it never chooses the target.
+                if values.get("id").and_then(|id| id.parse::<i64>().ok()) != Some(company) {
+                    self.flash =
+                        Some(("Select a company you may manage.".into(), StatusKind::Error));
+                    return Ok(());
+                }
                 let field = values.get("field").map(String::as_str).unwrap_or("");
                 let value = values.get("value").map(String::as_str).unwrap_or("");
                 let parsed = if value.is_empty() {
