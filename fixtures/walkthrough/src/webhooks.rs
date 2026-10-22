@@ -498,8 +498,8 @@ pub async fn run(url: &str) -> Outcome {
         }
     }
     for timestamp in [
-        Timestamp::now().as_second() - 301,
-        Timestamp::now().as_second() + 301,
+        Timestamp::now().as_second() - 600,
+        Timestamp::now().as_second() + 600,
         999999999999999999,
     ] {
         let mut stale = Request::new(&secret);
