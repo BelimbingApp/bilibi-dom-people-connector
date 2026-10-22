@@ -335,11 +335,10 @@ impl Connector {
             Status::from_workforce(people::company(&self.ports, &tx, scope, company).await?)?;
         let (c, _) = self.connection_provider(tx.sql(), scope, company).await?;
         require_mapping(&c, &current)?;
-        let raw = store::rows(tx.sql(), Table::Issue, &c)
-            .await?
-            .into_iter()
-            .find(|v| v["id"] == issue_id && v["status"] == "open")
-            .ok_or(ConnectorError::NotFound)?;
+        let raw = tx.sql().query_opt(
+            "SELECT to_jsonb(i) FROM people_connector_reconciliation_issues i WHERE tenant_id=$1 AND connection_id=$2 AND id=$3 AND status='open'",
+            &[&c.tenant_id,&c.id,&issue_id],
+        ).await.map_err(Error::from)?.map(|row|row.get(0)).ok_or(ConnectorError::NotFound)?;
         resolve(&mut tx, raw).await?;
         tx.commit().await?;
         Ok(())
@@ -405,11 +404,10 @@ impl Connector {
         let c = connections::find(tx.sql(), scope.tenant(), original.platform_company_id, true)
             .await?
             .ok_or(ConnectorError::Conflict)?;
-        let raw = store::rows(tx.sql(), Table::Run, &c)
-            .await?
-            .into_iter()
-            .find(|v| v["id"] == run.id)
-            .ok_or(ConnectorError::Conflict)?;
+        let raw:Value = tx.sql().query_opt(
+            "SELECT to_jsonb(r) FROM people_connector_sync_runs r WHERE tenant_id=$1 AND connection_id=$2 AND id=$3 FOR UPDATE",
+            &[&c.tenant_id,&c.id,&run.id],
+        ).await.map_err(Error::from)?.map(|row|row.get(0)).ok_or(ConnectorError::Conflict)?;
         if raw["state"] != "running" {
             let result = store::decode(raw)?;
             tx.commit().await?;
