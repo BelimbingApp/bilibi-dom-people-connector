@@ -1,0 +1,26 @@
+# The People connector walkthrough: example-only, run against a disposable
+# database. Discovery never sees `fixtures/`; the connector crate lists this
+# crate as a dev-dependency so the mounted gates lint and build it as a
+# workspace member.
+[package]
+name = "bilibi-people-connector-walkthrough"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bilibi-authz.workspace = true
+bilibi-base.workspace = true
+bilibi-core.workspace = true
+bilibi-database.workspace = true
+bilibi-domains.workspace = true
+bilibi-extensions.workspace = true
+bilibi-module-registry.workspace = true
+bilibi-people-connector-connector = { path = "../../connector" }
+bilibi-tenancy.workspace = true
+bilibi-walkthrough-fixture = { path = "../../../../../fixtures/walkthrough" }
+bilibi-web.workspace = true
+tokio.workspace = true
+tokio-postgres.workspace = true

@@ -1,0 +1,37 @@
+# Project agent memory
+
+This repository is the People connector Domain for Bilibi. It builds only
+when mounted in a Bilibi checkout at `apps/domains/people_connector` (see
+`README.md`), alone or beside `bilibi-dom-people` at `apps/domains/people`.
+Read Bilibi's `AGENTS.md`, `apps/domains/AGENTS.md`, `apps/base/ui/AGENTS.md`
+and `apps/base/ports/README.md` in that checkout first; they govern this
+code and are not copied here. Entries below are this repository's own
+rules: short "use this, not that" lines with the reason.
+
+- Correct entries that work proves wrong; add new ones only by deliberate maintainer choice, never as routine task output.
+
+## Architecture
+
+- Mount a real copy (`git clone`), never a symlink, and commit and push only inside this repository: Askama and path dependencies resolve from the mount location, and the Platform's `apps/domains/Cargo.toml`, `apps/domains/src/lib.rs` and `Cargo.lock` change while mounted but belong to the Platform in their unmounted form (`discover-modules.py --check` refuses them committed). Never commit a lock file, a root `Cargo.toml` or a `[workspace]` here: discovery refuses the shape.
+- Reach People only through the `people/workforce.directory` port (`connector/src/people.rs`, `bilibi_ports::Ports::call` with the connector's own serde types for the shape `connector/README.md` documents), never a Cargo dependency, descriptor edge, port call into another People module or SQL on a People table: each couples the two containers' composition or schema, and the connector must compose and boot without People. A `PortError::Unavailable` is the connector's own `ConnectorError::PeopleUnavailable` outcome, never a failure; a page withholds the controls that would only be refused and says People is absent (`Connector::people_available`).
+- An adapter module serves a provider by submitting one `bilibi_people_connector_connector::Adapter` under the `ADAPTERS` catalog with `inventory` (`connector/src/adapters.rs`), contributed under the provider id by a module that depends on `people_connector/connector`; never a runtime registry, a `static` map or a `OnceLock` the adapter writes at start: Bilibi has no application start, the catalog is validated at boot, and the facade reads it once when its service is installed. The Connector never names an adapter crate: it depends on the Connector, not the other way round.
+- Expose one small facade per module (`connector/src/lib.rs`: `Connector` with `Status`, `ConnectorError` and the contract types) and keep the schema, SQL and helpers in private modules, not `pub`: a deep module is the one place a rule lives, so a caller cannot bypass the capability check, the company lock or the mapping check by reaching a lower layer. The second module, `native_people_adapter`, reaches the Connector only through this facade and the `adapters` and `contracts` modules it exports, on the edge Bilimbi also has.
+- Use only meta-terms in Domain code: provider, connection, capability, directory, workforce company, platform company, employee, position, credential. A provider's name, endpoint, mapping, schedule or threshold is a company's setting, never a code identifier, constant or default; only the co-located native provider (`people.native`) is offered. No vendor pack and no sample rows: proofs create their own records in `fixtures/walkthrough` on a disposable database.
+
+## Platform contracts
+
+- Keep Bilimbi's IDs, keys and names verbatim: module IDs `people_connector/<module>`, tables under `people_connector_*`, capabilities under the Authz domain `people-connector` (a capability segment allows hyphens, not underscores: `bilibi_authz` `vocabulary.rs`), setting keys `people-connector.*`, the menu id `admin.system.integrations.people-connections`, the capability keys of `contracts::CAPABILITY_KEYS`, the provider id and contract version, refusal atoms as `ConnectorError` variants and the page's sentences as their `Display`. They are persisted data and the parity reference. Declare every verb a capability key ends in that Base does not already declare: the vocabulary refuses a key whose last segment no module declared.
+- Keep both company axes explicit and separate everywhere (`platform_company_id` a Core Company of the scope's tenant; `workforce_source_id` with `workforce_company_id` the People identity recorded at setup), and a login actor is never a company or employee identity: a stored mapping is refused as `MappingChanged` once Workforce reports the platform company differently, and native identity happens to map one to one, which no code may assume.
+- Authorize inside the facade with `bilibi_company::organisation::authorize_target` and the scope it was handed, with `people-connector.connections.manage` for every write (never an actor, employee or company taken from a form); `status` needs only the scope and follows Workforce's read policy by asking the port first. A page checks its capability again on every write-shaped event and the facade checks once more.
+- Make every write through `MutationBoundary` (`tx.mutate` returning each affected row as a `Change`, `json!({})` on the absent side so audit names it `created` or `deleted`), holding `organisation::require_writable(.., lock = true)` and the connection row `FOR UPDATE` first, never a bare transaction. Decide refusals with `tx.sql()` before `mutate` (`connections::workforce_company_taken`) and return them as typed `ConnectorError` variants, never `Error::Forbidden`/`Error::Internal` from a live event: the live transport treats those two as fatal, and a mutate that fails poisons the transaction.
+- Store the provider credential only through `Settings::put`/`delete` on `CREDENTIAL_KEY` (`people-connector.connection.credential`: company-scoped, encrypted, `editor: None`) and report only `Resolved.overridden` from `resolve_masked`, never the value: a secret is never shown back, never logged and never read into HTML; `BILIBI_SETTINGS_KEY` must be set to store one (deleting ciphertext needs no key).
+- Name a migration `people-connector-<module>-NNN-<slug>` under the module's `migrations/`, declared in the descriptor, and add a new file for every schema change, never editing an applied one: the ledger records each file's SHA-256 and refuses a changed applied file.
+- Keep `fixtures/walkthrough` the only fixture: an example-only crate that migrates a disposable database, installs the Platform fixture and drives the facade, never seed data, demo users or demo pages; prove behaviour in the running app, never with unit tests. It stays a workspace member through `connector`'s `[dev-dependencies]` edge (Cargo adds path dependencies of members, and ignores one without a lib target, which is why it has `lib.rs` and a thin `main.rs`); never move it to `[dependencies]`. A slice adds its steps as its own block at the end of `lib.rs`, so parallel slices do not clash on merge.
+- Document a module in its own `<module>/README.md`; this file and the root README take a line only when it is true for the whole Domain, because many slices run in parallel and shared files cause merge conflicts.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.
