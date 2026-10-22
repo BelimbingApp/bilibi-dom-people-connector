@@ -241,7 +241,7 @@ impl State {
                             .import_file(scope, company, &file.bytes)
                             .await
                     }
-                    _ => Err(crate::ConnectorError::InvalidFile),
+                    _ => Err(crate::ConnectorError::MissingFile),
                 };
                 self.file_outcome(result, "Directory file imported for review.");
             }
@@ -253,23 +253,21 @@ impl State {
                 );
             }
             "request_purge" => self.pending_purge = true,
-            "purge" => {
-                if self.pending_purge {
-                    self.pending_purge = false;
-                    let result = self
-                        .pages
-                        .connector
-                        .purge_expired_files(scope, company)
-                        .await
-                        .and_then(|r| {
-                            if r.failed.is_empty() {
-                                Ok(r)
-                            } else {
-                                Err(crate::ConnectorError::InvalidFile)
-                            }
-                        });
-                    self.outcome(result, "Expired files removed.");
-                }
+            "purge" if self.pending_purge => {
+                self.pending_purge = false;
+                let result = self
+                    .pages
+                    .connector
+                    .purge_expired_files(scope, company)
+                    .await
+                    .and_then(|r| {
+                        if r.failed.is_empty() {
+                            Ok(r)
+                        } else {
+                            Err(crate::ConnectorError::PurgeIncomplete)
+                        }
+                    });
+                self.outcome(result, "Expired files removed.");
             }
             _ => {}
         }
@@ -595,7 +593,7 @@ impl Download<Scope, Error> for Pages {
             Ok(FileBody::attachment(
                 document.bytes,
                 "application/json",
-                &format!("people-directory-{id}.json"),
+                "people-directory.json",
             ))
         })
     }

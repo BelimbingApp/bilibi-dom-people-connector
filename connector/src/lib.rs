@@ -141,13 +141,45 @@ pub enum ConnectorError {
         "File exchange refused. Check the connection, file policy and private storage settings."
     )]
     InvalidFile,
-    #[error("File exchange is disabled for this connection.")]
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    InvalidFilePolicy,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    FileTooLarge,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    TooManyRecords,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    ConnectionChanged,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    MissingFile,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    PurgeIncomplete,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
     FileExchangeDisabled,
-    #[error("A file exchange is already in progress. Try again when it finishes.")]
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
     FileExchangeInProgress,
-    #[error("This file exchange was abandoned. Try again.")]
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
     FileExchangeAbandoned,
-    #[error("Synchronise the native connection before exporting directory files.")]
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
     DirectoryUnavailable,
     #[error(
         "File exchange refused. Check the connection, file policy and private storage settings."

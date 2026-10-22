@@ -362,6 +362,42 @@ pub async fn file_walkthrough() -> Result<()> {
         "byte policy enforced before storage",
     )?;
     connector.put_file_policy(&manager, 1, policy).await?;
+    connector
+        .put_file_policy(
+            &manager,
+            1,
+            FilePolicy {
+                max_records: 1,
+                ..policy
+            },
+        )
+        .await?;
+    require(
+        connector.export_file(&manager, 1).await.is_err(),
+        "record policy bounds export",
+    )?;
+    connector.put_file_policy(&manager, 1, policy).await?;
+    client.execute("UPDATE people_connector_sync_checkpoints SET as_of_at=clock_timestamp()-interval '2 days' WHERE tenant_id=1",&[]).await?;
+    require(
+        matches!(
+            connector.export_file(&manager, 1).await,
+            Err(ConnectorError::DirectoryUnavailable)
+        ),
+        "stale directory cannot export",
+    )?;
+    client.execute("UPDATE people_connector_sync_checkpoints SET as_of_at=clock_timestamp() WHERE tenant_id=1",&[]).await?;
+    invalid = file.clone();
+    invalid["format"] = json!("unsupported-directory-format");
+    require(
+        import(&connector, &manager, &invalid).await.is_err(),
+        "unsupported format refused",
+    )?;
+    let mut trailing = bytes.clone();
+    trailing.extend_from_slice(b"{}");
+    require(
+        connector.import_file(&manager, 1, &trailing).await.is_err(),
+        "trailing JSON refused",
+    )?;
     // Disposable fixture clock and lifecycle injection; product writes always use the boundary.
     client.execute("UPDATE people_connector_file_exchanges SET expires_at=clock_timestamp()-interval '1 second' WHERE tenant_id=1 AND id=$1::text::uuid",&[&imported.receipt.id]).await?;
     require(
@@ -421,7 +457,7 @@ pub async fn file_walkthrough() -> Result<()> {
     )?;
     connector.set_enabled(&manager, 1, true).await?;
     // Expire Base-owned bytes on the disposable database to exercise its real purge.
-    client.execute("UPDATE base_artifacts SET expires_at=clock_timestamp()-interval '1 second' WHERE tenant_id=1 AND company_id=1 AND owner_id=$1",&[&MODULE]).await?;
+    client.execute("UPDATE base_artifacts SET expires_at=created_at+interval '1 microsecond' WHERE tenant_id=1 AND company_id=1 AND owner_id=$1",&[&MODULE]).await?;
     connector.remove_connection(&manager, 1).await?;
     let purged = connector.purge_expired_files(&manager, 1).await?;
     require(

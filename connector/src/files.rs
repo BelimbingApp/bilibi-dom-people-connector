@@ -137,7 +137,7 @@ impl Connector {
         let mut client = self.db.get().await.map_err(Error::from)?;
         authorize(&**client, scope, company).await?;
         if !values.valid() {
-            return Err(ConnectorError::InvalidFile);
+            return Err(ConnectorError::InvalidFilePolicy);
         }
         let mut tx = self
             .begin(&mut client, scope, "people-connector.files.policy")
@@ -225,7 +225,7 @@ impl Connector {
             .value
             .ok_or(ConnectorError::DirectoryUnavailable)?;
         if records.len() > policy.max_records as usize {
-            return Err(ConnectorError::InvalidFile);
+            return Err(ConnectorError::TooManyRecords);
         }
         let bytes = file_format::encode(scope.tenant(), &status, &records)?;
         check_size(&bytes, policy)?;
@@ -269,7 +269,7 @@ impl Connector {
         }
         check_size(bytes, policy)?;
         if count > policy.max_records as usize {
-            return Err(ConnectorError::InvalidFile);
+            return Err(ConnectorError::TooManyRecords);
         }
         let rows = store::matching(tx.sql(), scope.tenant(), c.id, direction, &digest).await?;
         let mut retry = None;
@@ -457,7 +457,7 @@ impl Connector {
 }
 fn check_size(bytes: &[u8], policy: FilePolicy) -> Result<()> {
     if bytes.is_empty() || bytes.len() > policy.max_bytes as usize {
-        Err(ConnectorError::InvalidFile)
+        Err(ConnectorError::FileTooLarge)
     } else {
         Ok(())
     }
