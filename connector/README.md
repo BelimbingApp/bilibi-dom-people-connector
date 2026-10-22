@@ -9,6 +9,8 @@ source it ports is
 
 Connections and synchronisation are available through `Connector`. The connections page (KC2), inbound notifications (KC3), file exchange (KC4), operations (KC5) and backups (KC6) follow separately.
 
+The proposed [native notification contract](webhooks.md) records KC3's signing and replay rules and the missing machine-read APIs. Intake is not implemented yet.
+
 ## Contracts
 
 `Capability`, `Provider` and `Registry` (`contracts.rs`) describe
