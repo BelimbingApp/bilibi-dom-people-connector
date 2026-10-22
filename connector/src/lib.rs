@@ -573,7 +573,8 @@ async fn require_writable(
 }
 
 fn require_mapping(connection: &Connection, current: &Status) -> Result<()> {
-    if connection.workforce_source_id != current.workforce_source_id
+    if connection.platform_company_id != current.platform_company_id
+        || connection.workforce_source_id != current.workforce_source_id
         || connection.workforce_company_id != current.workforce_company_id
     {
         return Err(ConnectorError::MappingChanged);

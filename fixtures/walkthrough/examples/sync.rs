@@ -32,7 +32,7 @@ impl PortProvider for CompanyPort {
             .await)?;
             Ok(
                 json!({"value":{"reference":{"source_id":"people/native","type":"company","stable_id":company.to_string()},
-            "platform_company_id":company,"workforce_company_id":company+1000,"name":"Workforce company","code":"WORKFORCE"},"freshness":"current"}),
+            "platform_company_id":if MODE.load(Ordering::SeqCst)==24 {company+1} else {company},"workforce_company_id":company+1000,"name":"Workforce company","code":"WORKFORCE"},"freshness":"current"}),
             )
         })
     }
@@ -302,6 +302,23 @@ async fn main() -> Result<()> {
             Err(ConnectorError::InvalidIdempotencyKey)
         ),
         "invalid key refused before reservation",
+    )?;
+    MODE.store(24, Ordering::SeqCst);
+    expect(
+        matches!(
+            connector.status(&manager, 1).await,
+            Err(ConnectorError::MappingChanged)
+        ),
+        "company read cannot redirect the platform company axis",
+    )?;
+    expect(
+        matches!(
+            connector
+                .synchronise(&manager, 1, "platform-mismatch", SyncOptions::default())
+                .await,
+            Err(ConnectorError::MappingChanged)
+        ),
+        "sync refuses a changed platform company axis before reserving a pass",
     )?;
     let first = pass(&connector, &manager, "bootstrap", 0).await?;
     expect(
