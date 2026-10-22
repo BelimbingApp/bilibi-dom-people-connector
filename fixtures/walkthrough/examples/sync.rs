@@ -753,6 +753,14 @@ async fn main() -> Result<()> {
         .map_err(|_| Error::Internal)?;
     let left:i64=client.query_one("SELECT (SELECT count(*) FROM people_connector_sync_runs WHERE tenant_id=1 AND connection_id=$1)+(SELECT count(*) FROM people_connector_workforce_records WHERE tenant_id=1 AND connection_id=$1)+(SELECT count(*) FROM people_connector_sync_checkpoints WHERE tenant_id=1 AND connection_id=$1)+(SELECT count(*) FROM people_connector_reconciliation_issues WHERE tenant_id=1 AND connection_id=$1)",&[&id]).await?.get(0);
     expect(left == 0, "removal deletes all owned sync rows")?;
+    // Let the same disposable fixture be used to inspect the three company
+    // policies in the shared settings editor after the backend proof.
+    for key in [
+        "base.settings.global.manage",
+        "base.settings.company.manage",
+    ] {
+        grants.set_direct(&admin, 1, key, Some(true)).await?;
+    }
     println!("KC1 sync proof complete");
     Ok(())
 }
