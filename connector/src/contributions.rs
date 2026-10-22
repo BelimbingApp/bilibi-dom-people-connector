@@ -54,6 +54,9 @@ inventory::submit! {
         migrations: &[(
             "people-connector-connector-001-connections",
             include_str!("../migrations/001-connections.sql"),
+        ), (
+            "people-connector-connector-002-sync",
+            include_str!("../migrations/002-sync.sql"),
         )],
         services: &[Service {
             id: SERVICE,
@@ -114,3 +117,38 @@ inventory::submit! { Contribution::new(DEFINITIONS, CREDENTIAL_KEY, provenance!(
     validator: Some(bilibi_settings::Validator { accepts: credential_valid, message: "Enter a credential of at most 4096 characters." }),
     editor: None,
 })) }
+
+// Bilimbi Connector.Contributions: the three company sync policies.
+macro_rules! sync_policy {
+    ($key:literal,$default:literal,$min:literal,$max:literal,$label:literal,$help:literal) => {
+        inventory::submit! { Contribution::new(DEFINITIONS,$key,provenance!(),&Setting::Definition(Definition {
+            value_type: ValueType::Integer, scopes: &[ScopeKind::Company], default: || serde_json::json!($default),
+            nullable: false, encrypted: false, minimum: Some($min as f64), maximum: Some($max as f64), validator: None,
+            editor: Some(bilibi_settings::Editor { group: "People integrations",label:$label,help:$help,capability:Some(MANAGE),reveal_duration_ms:0 }),
+        })) }
+    };
+}
+sync_policy!(
+    "people-connector.sync.page_limit",
+    250,
+    1,
+    1000,
+    "Synchronisation page size",
+    "Most directory records the provider returns on one page."
+);
+sync_policy!(
+    "people-connector.sync.max_age_minutes",
+    1440,
+    5,
+    43200,
+    "Synchronised data maximum age",
+    "Minutes after the last completed pass before synchronised records are stale."
+);
+sync_policy!(
+    "people-connector.sync.run_timeout_minutes",
+    30,
+    1,
+    1440,
+    "Synchronisation run timeout",
+    "Minutes a pass may run before its outcome is recorded as unknown."
+);

@@ -28,13 +28,19 @@
 //! is the encrypted company-scoped Base Setting [`CREDENTIAL_KEY`]: the facade
 //! stores or clears it and reports only whether one exists.
 //!
-//! The sync engine (`synchronise`, `workforce`, `sync_summary`,
-//! `resolve_issue`, `put_sync_policy`, `request_port`) lands in port plan row
-//! KC1 on the contracts and the [`Adapters`] catalog declared here.
+//! Synchronisation reserves one idempotent pass, reads every declared directory
+//! stream outside a transaction and applies all accepted facts atomically.
+//! `workforce` carries freshness; `sync_summary` includes the checkpoint,
+//! last run, issues and policy. Only `synchronise` invokes adapters.
 //!
 //! See `README.md`.
 mod connections;
 mod contributions;
+mod sync;
+mod sync_store;
+mod sync_types;
+pub use sync::POLICY_FIELDS;
+pub use sync_types::*;
 
 pub mod adapters;
 pub mod contracts;
@@ -111,6 +117,16 @@ pub enum ConnectorError {
     WorkforceCompanyTaken,
     #[error("Someone else changed this connection. Review it and try again.")]
     Conflict,
+    #[error("No adapter serves this provider yet, so it cannot be synchronised.")]
+    AdapterUnavailable,
+    #[error("A synchronisation is already running for this company. Try again when it finishes.")]
+    SyncInProgress,
+    #[error("Enter a request key of 1–100 letters, digits, dots, underscores, colons or hyphens, starting with a letter or digit.")]
+    InvalidIdempotencyKey,
+    #[error("Enter whole numbers within the ranges shown.")]
+    InvalidPolicy(&'static str),
+    #[error("The checkpoint changed. Review it and try again.")]
+    CheckpointMoved,
     /// A database or capture failure; never a refusal.
     #[error(transparent)]
     Failed(Error),
@@ -278,9 +294,9 @@ impl Connector {
                 if provider_changed {
                     self.delete_credential(&mut tx, scope, &connection).await?;
                 }
-                // Records synchronised from another provider or workforce
-                // company must not survive as this mapping's data (the sync
-                // reset and webhook clearing land with KC1 and KC3).
+                if provider_changed || remapped {
+                    sync_store::reset(&mut tx, &connection).await?;
+                }
                 let enabled = connection.enabled && !provider_changed && !remapped;
                 connections::update(&mut tx, connection, mapping, enabled).await?;
             }
@@ -400,6 +416,7 @@ impl Connector {
             .await?
             .ok_or(ConnectorError::Disconnected)?;
         self.delete_credential(&mut tx, scope, &connection).await?;
+        sync_store::remove(&mut tx, &connection).await?;
         connections::delete(&mut tx, connection).await?;
         tx.commit().await?;
         Ok(())
