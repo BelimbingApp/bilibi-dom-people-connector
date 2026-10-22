@@ -42,6 +42,17 @@ async fn event(
     scope: &Scope,
     payload: Value,
 ) -> Result<LiveBody> {
+    let mut flat = serde_json::Map::new();
+    for (key, value) in payload.as_object().ok_or("event object missing")? {
+        if let Some(fields) = value.as_object() {
+            for (field, value) in fields {
+                flat.insert(format!("{key}[{field}]"), value.clone());
+            }
+        } else {
+            flat.insert(key.clone(), value.clone());
+        }
+    }
+    let payload = Value::Object(flat);
     Ok(page
         .update(LiveRequest {
             scope,
@@ -218,7 +229,7 @@ pub async fn connections_page_walkthrough() -> Result<()> {
         connector.sync_summary(&manager, 1).await?.policy.page_limit == 100,
         "policy saved through page",
     )?;
-    let secret = uuid::Uuid::new_v4().simple().to_string();
+    let secret = uuid::Uuid::new_v4().simple().to_string().repeat(128);
     let webhook = event(page.as_mut(), &manager, json!({"type":"save_webhook", "webhook":{"enabled":"true", "password":secret, "max_skew_seconds":"300"}})).await?;
     require(
         webhook.html.contains("Webhook settings saved.") && !webhook.html.contains(&secret),

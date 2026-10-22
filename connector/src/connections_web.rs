@@ -303,8 +303,12 @@ impl State {
                 }
             }
             "save_credential" => {
-                let form = params::form_values(payload, "credential");
-                if let Some(secret) = form.get("secret") {
+                // Shared form coercion caps values at 1 KiB. Secret contracts allow
+                // 4,096 bytes, so let the facade validate this exact field instead.
+                if let Some(secret) = payload
+                    .get("credential[secret]")
+                    .and_then(serde_json::Value::as_str)
+                {
                     if secret == MASK
                         && self
                             .selected()
@@ -430,13 +434,14 @@ impl State {
                         .get("max_skew_seconds")
                         .and_then(|s| s.parse().ok())
                         .ok_or(ConnectorError::InvalidWebhookSettings)?;
-                    let secret = form
-                        .get("password")
+                    let secret = payload
+                        .get("webhook[password]")
+                        .and_then(serde_json::Value::as_str)
                         .ok_or(ConnectorError::InvalidWebhookSettings)?;
                     Ok(WebhookSettingsUpdate {
                         enabled: Some(enabled),
                         max_skew_seconds: Some(skew),
-                        secret: (secret != MASK).then(|| secret.clone()),
+                        secret: (secret != MASK).then(|| secret.to_owned()),
                     })
                 })();
                 let result = match parsed {
