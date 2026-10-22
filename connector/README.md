@@ -155,7 +155,7 @@ contributed role, so an administrator grants them. The menu leaf
 **Administration › System › Integrations › People connections**
 (`admin.system.integrations.people-connections`, order 50, route
 `/integrations/people/connections`) carries the view capability; the route
-enforces it again when the page lands (KC2).
+enforces it again on each visit.
 
 ## Synchronisation
 

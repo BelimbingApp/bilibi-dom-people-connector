@@ -75,6 +75,61 @@ fn sync_key(html: &str) -> Result<String> {
         .ok_or("page key missing")?;
     Ok(key.into())
 }
+async fn notice(services: &Services, secret: &str) -> Result<()> {
+    use bilibi_base::integration::webhooks::{Delivery, WebhookService};
+    use hmac::{Hmac, KeyInit, Mac};
+    use sha2::Sha256;
+    let mut headers = vec![
+        ("x-people-tenant".into(), b"1".to_vec()),
+        ("x-people-company".into(), b"1".to_vec()),
+        (
+            "x-people-timestamp".into(),
+            jiff::Timestamp::now().as_second().to_string().into_bytes(),
+        ),
+        (
+            "x-people-nonce".into(),
+            uuid::Uuid::new_v4().to_string().into_bytes(),
+        ),
+        (
+            "x-people-delivery".into(),
+            uuid::Uuid::new_v4().to_string().into_bytes(),
+        ),
+    ];
+    let body = br#"{"event":"directory.changed"}"#;
+    let mut bytes = b"people-native:v1\n".to_vec();
+    for (_, value) in &headers {
+        bytes.extend_from_slice(value);
+        bytes.push(b'\n');
+    }
+    bytes.extend_from_slice(body);
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())?;
+    mac.update(&bytes);
+    headers.push((
+        "x-people-signature".into(),
+        data_encoding::HEXLOWER
+            .encode(&mac.finalize().into_bytes())
+            .into_bytes(),
+    ));
+    let delivery = Delivery {
+        method: "POST",
+        headers: &headers,
+        body,
+        remote_ip: None,
+    };
+    let handler =
+        services.get::<WebhookService>(bilibi_people_connector_connector::WEBHOOK_SERVICE)?;
+    let verified = handler
+        .0
+        .verify(&delivery)
+        .await
+        .map_err(|_| "notification verification refused")?;
+    handler
+        .0
+        .handle(&delivery, verified)
+        .await
+        .map_err(|_| "notification receipt refused")?;
+    Ok(())
+}
 /// Runs only on a freshly created disposable database, with the example's fixture catalog.
 pub async fn connections_page_walkthrough() -> Result<()> {
     bilibi_base::link();
@@ -240,6 +295,23 @@ pub async fn connections_page_walkthrough() -> Result<()> {
         connector.webhook_summary(&manager, 1).await?.secret_stored,
         "masked secret keeps ciphertext",
     )?;
+    notice(&services, &secret).await?;
+    let received = connector
+        .webhook_summary(&manager, 1)
+        .await?
+        .last_received_at
+        .ok_or("receipt missing")?;
+    let refreshed = page
+        .update(LiveRequest {
+            scope: &manager,
+            credential: "connections-proof",
+            input: LiveInput::Refresh,
+        })
+        .await?;
+    require(
+        refreshed.html.contains(&received.to_string()),
+        "last signed receipt renders through the page clock",
+    )?;
     let unconfirmed = event(page.as_mut(), &manager, json!({"type":"remove"})).await?;
     require(
         unconfirmed
@@ -309,6 +381,8 @@ pub async fn connections_page_walkthrough() -> Result<()> {
         json!({"type":"set_enabled", "enabled":"true"}),
     )
     .await?;
+    event(page.as_mut(), &manager, json!({"type":"save_webhook", "webhook":{"enabled":"true", "password":secret, "max_skew_seconds":"300"}})).await?;
+    notice(&services, &secret).await?;
     println!("KC2 page walkthrough complete");
     Ok(())
 }

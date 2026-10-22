@@ -26,7 +26,7 @@ use std::{
 };
 
 pub(crate) const PAGE_ID: &str = "people_connector/connector.connections_pages";
-const MASK: &str = "••••••••";
+use bilibi_ui::SECRET_MASK as MASK;
 const WRITES: &[&str] = &[
     "configure",
     "set_enabled",
@@ -584,8 +584,7 @@ impl State {
                                 "credential[secret]",
                                 "credential",
                             )
-                            .label("Provider credential")
-                            .no_reveal();
+                            .label("Provider credential");
                             if status.credential_stored {
                                 secret = secret.stored();
                             }
