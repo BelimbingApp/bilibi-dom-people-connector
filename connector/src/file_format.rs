@@ -95,7 +95,6 @@ pub(crate) fn validate(
             || record
                 .keys()
                 .any(|k| !BASE.contains(&k.as_str()) && !(v2 && POSITION.contains(&k.as_str())))
-            || position && !POSITION.iter().all(|k| record.contains_key(*k))
         {
             return Err(invalid());
         }

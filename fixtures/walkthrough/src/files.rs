@@ -267,6 +267,67 @@ pub async fn file_walkthrough() -> Result<()> {
         connector.import_file(&manager, 1, &bytes).await?.replayed,
         "identical import replays",
     )?;
+    // Bilimbi v2 permits omitted nullable organisation fields and defaults assignments to [].
+    let mut optional = file.clone();
+    let position = optional["records"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|r| r["kind"] == "position")
+        .unwrap();
+    for key in ["parent_stable_id", "version", "assignments"] {
+        position.as_object_mut().unwrap().remove(key);
+    }
+    require(
+        !import(&connector, &manager, &optional).await?.replayed,
+        "v2 position accepts omitted parent, version and assignments",
+    )?;
+    for key in ["vacant", "assignments_incomplete"] {
+        let mut invalid = optional.clone();
+        invalid["records"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|r| r["kind"] == "position")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+        require(
+            import(&connector, &manager, &invalid).await.is_err(),
+            &format!("v2 position still requires boolean {key}"),
+        )?;
+    }
+    for (assignment, label) in [
+        (
+            json!({"source_id":"people/native","stable_id":"assignment","employee_stable_id":"employee","kind":"substantive","extra":true}),
+            "extra assignment field refused",
+        ),
+        (
+            json!({"source_id":"people/native","stable_id":"assignment","kind":"substantive"}),
+            "missing assignment field refused",
+        ),
+    ] {
+        let mut invalid = optional.clone();
+        invalid["records"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|r| r["kind"] == "position")
+            .unwrap()["assignments"] = json!([assignment]);
+        require(import(&connector, &manager, &invalid).await.is_err(), label)?;
+    }
+    let mut invalid = optional.clone();
+    invalid["records"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|r| r["kind"] == "position")
+        .unwrap()["version"] = json!(0);
+    require(
+        import(&connector, &manager, &invalid).await.is_err(),
+        "v2 position refuses a nonpositive version",
+    )?;
     let cp_before = connector
         .sync_summary(&manager, 1)
         .await?
