@@ -1,7 +1,7 @@
 //! Bilimbi Connector.Doctor: fixed findings without repair or transport side effects.
 use crate::{
     authorize, connections, people, require_mapping, require_writable, retention::action,
-    Connector, ConnectorError, Credential, Result, Status,
+    Connector, ConnectorError, Credential, Freshness, Result, Status,
 };
 use bilibi_database::Error;
 use bilibi_settings::Target;
@@ -161,33 +161,28 @@ impl Connector {
             let counts=tx.sql().query_one("SELECT count(*) FILTER (WHERE state='running' AND started_at<clock_timestamp()-make_interval(mins=>$3)),count(*) FILTER (WHERE state IN ('failed','unknown','refused','stale','unavailable')) FROM people_connector_sync_runs WHERE tenant_id=$1 AND connection_id=$2",&[&scope.tenant(),&c.id,&(policy.run_timeout_minutes as i32)]).await.map_err(Error::from)?;
             let issues:i64=tx.sql().query_one("SELECT count(*) FROM people_connector_reconciliation_issues WHERE tenant_id=$1 AND connection_id=$2 AND status='open'",&[&scope.tenant(),&c.id]).await.map_err(Error::from)?.get(0);
             let last=tx.sql().query_opt("SELECT state,to_char(coalesce(finished_at,started_at) AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') FROM people_connector_sync_runs WHERE tenant_id=$1 AND connection_id=$2 ORDER BY started_at DESC,id DESC LIMIT 1",&[&scope.tenant(),&c.id]).await.map_err(Error::from)?;
-            let cp=tx.sql().query_opt("SELECT to_char(as_of_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') FROM people_connector_sync_checkpoints WHERE tenant_id=$1 AND connection_id=$2",&[&scope.tenant(),&c.id]).await.map_err(Error::from)?;
-            let at = timestamp(cp.map(|r| r.get(0)));
-            let fresh = if current.is_err() || !c.enabled || at.is_none() {
-                Finding::new(
-                    "projection",
-                    Bad,
-                    "Directory unavailable",
-                    "Restore the connection mapping and complete a synchronisation pass.",
-                )
-            } else if at
-                .is_some_and(|at| now.as_second() - at.as_second() > policy.max_age_minutes * 60)
-            {
-                Finding::new(
-                    "projection",
-                    Warning,
-                    "Directory stale",
-                    "Run a synchronisation pass on People connections.",
-                )
-                .at(at)
-            } else {
-                Finding::new(
+            let (freshness, at) = crate::sync::projection_health(tx.sql(), c, policy).await?;
+            let fresh = match (current.is_ok(), freshness) {
+                (true, Freshness::Current) => Finding::new(
                     "projection",
                     Good,
                     "Directory current",
                     "The completed checkpoint is within the company freshness policy.",
                 )
-                .at(at)
+                .at(at),
+                (true, Freshness::Stale(at)) => Finding::new(
+                    "projection",
+                    Warning,
+                    "Directory stale",
+                    "Run a synchronisation pass on People connections.",
+                )
+                .at(Some(at)),
+                _ => Finding::new(
+                    "projection",
+                    Bad,
+                    "Directory unavailable",
+                    "Restore the connection mapping and complete a synchronisation pass.",
+                ),
             };
             checks.extend([
                 fresh,

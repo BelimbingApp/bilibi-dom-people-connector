@@ -83,6 +83,17 @@ fn fresh(c: Option<&Connection>, checkpoint: &Option<Checkpoint>, policy: SyncPo
         Some(_) => Freshness::Current,
     }
 }
+// Doctor uses the same freshness rule while holding its existing company/connection locks.
+pub(crate) async fn projection_health(
+    client: &(impl GenericClient + Sync),
+    connection: &Connection,
+    policy: SyncPolicy,
+) -> Result<(Freshness, Option<Timestamp>)> {
+    let checkpoint = checkpoint(client, connection).await?;
+    let at = checkpoint.as_ref().map(|checkpoint| checkpoint.as_of_at);
+    Ok((fresh(Some(connection), &checkpoint, policy), at))
+}
+
 impl Connector {
     pub(crate) async fn sync_policy(
         &self,

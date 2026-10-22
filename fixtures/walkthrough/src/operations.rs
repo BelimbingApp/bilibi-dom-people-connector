@@ -177,6 +177,21 @@ pub async fn operations_walkthrough() -> Result<()> {
         .await?;
     connector.set_enabled(&manager, 1, true).await?;
     let connection:i64=client.query_one("SELECT id FROM people_connector_connections WHERE tenant_id=1 AND platform_company_id=1",&[]).await?.get(0);
+    client.execute("INSERT INTO people_connector_sync_checkpoints(tenant_id,connection_id,version,as_of_at,bootstrap_required) VALUES(1,$1,1,clock_timestamp(),true)",&[&connection]).await?;
+    let restored = connector.run_doctor(&manager, 1).await?;
+    require(
+        restored
+            .checks
+            .iter()
+            .any(|c| c.code == "projection" && c.state == FindingState::Error),
+        "restored checkpoints stay unavailable until a bootstrap completes",
+    )?;
+    client
+        .execute(
+            "DELETE FROM people_connector_sync_checkpoints WHERE tenant_id=1 AND connection_id=$1",
+            &[&connection],
+        )
+        .await?;
     // Direct time travel and corruptible data live only in this disposable fixture.
     let mut runs = vec![];
     for (key, state, age) in [
