@@ -118,7 +118,7 @@ macro_rules! sync_policy {
         inventory::submit! { Contribution::new(DEFINITIONS,$key,provenance!(),&Setting::Definition(Definition {
             value_type: ValueType::Integer, scopes: &[ScopeKind::Company], default: || serde_json::json!($default),
             nullable: false, encrypted: false, minimum: Some($min as f64), maximum: Some($max as f64), validator: None,
-            editor: Some(bilibi_settings::Editor { group: "People integrations",label:$label,help:$help,capability:Some(MANAGE),reveal_duration_ms:0 }),
+            editor: Some(bilibi_settings::Editor { group: "People integrations",label:$label,help:$help,capability:Some(MANAGE),reveal_duration_ms:5000 }),
         })) }
     };
 }

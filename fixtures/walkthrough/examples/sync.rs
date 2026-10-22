@@ -550,6 +550,10 @@ async fn main() -> Result<()> {
         .set_enabled(&manager, 1, false)
         .await
         .map_err(|_| Error::Internal)?;
+    connector
+        .set_enabled(&manager, 1, true)
+        .await
+        .map_err(|_| Error::Internal)?;
     RELEASE.notify_one();
     let late = task
         .await
@@ -559,6 +563,10 @@ async fn main() -> Result<()> {
         late.state == RunState::Refused && late.reason.as_deref() == Some("connection_changed"),
         "connection edit refuses late result",
     )?;
+    connector
+        .set_enabled(&manager, 1, false)
+        .await
+        .map_err(|_| Error::Internal)?;
     expect(
         matches!(
             connector

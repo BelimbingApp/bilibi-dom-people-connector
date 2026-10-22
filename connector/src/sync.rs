@@ -503,8 +503,17 @@ impl Connector {
         Ok(result)
     }
 }
+// Migration 001's updated_at has whole-second precision. PostgreSQL's row
+// version also catches disable/re-enable or remap cycles within that second.
 async fn connection_stamp(client: &impl GenericClient, c: &Connection) -> Result<String> {
-    Ok(client.query_one("SELECT updated_at::text FROM people_connector_connections WHERE tenant_id=$1 AND id=$2",&[&c.tenant_id,&c.id]).await.map_err(Error::from)?.get(0))
+    Ok(client
+        .query_one(
+            "SELECT xmin::text FROM people_connector_connections WHERE tenant_id=$1 AND id=$2",
+            &[&c.tenant_id, &c.id],
+        )
+        .await
+        .map_err(Error::from)?
+        .get(0))
 }
 
 struct Stream {
