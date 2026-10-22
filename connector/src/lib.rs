@@ -44,8 +44,11 @@ mod contributions;
 mod sync;
 mod sync_store;
 mod sync_types;
+mod webhook_store;
+mod webhooks;
 pub use sync::POLICY_FIELDS;
 pub use sync_types::*;
+pub use webhooks::{WebhookSettingsUpdate, WebhookSummary, WEBHOOK_IDENTIFIER, WEBHOOK_SERVICE};
 
 pub mod adapters;
 pub mod contracts;
@@ -132,6 +135,10 @@ pub enum ConnectorError {
     InvalidIdempotencyKey,
     #[error("Enter whole numbers within the ranges shown.")]
     InvalidPolicy(&'static str),
+    #[error("Enter a secret of 32–4096 bytes and an allowed clock difference of 1–86400 seconds.")]
+    InvalidWebhookSettings,
+    #[error("Store a webhook signing secret before enabling intake.")]
+    WebhookSecretMissing,
     #[error("The checkpoint changed. Review it and try again.")]
     CheckpointMoved,
     /// A database or capture failure; never a refusal.
@@ -372,6 +379,7 @@ impl Connector {
                     self.delete_credential(&mut tx, scope, &connection).await?;
                 }
                 if provider_changed || remapped {
+                    webhook_store::clear(&mut tx, &connection).await?;
                     sync_store::reset(&mut tx, &connection).await?;
                 }
                 let enabled = connection.enabled && !provider_changed && !remapped;
@@ -493,6 +501,8 @@ impl Connector {
             .await?
             .ok_or(ConnectorError::Disconnected)?;
         self.delete_credential(&mut tx, scope, &connection).await?;
+        webhook_store::clear(&mut tx, &connection).await?;
+        webhook_store::remove(&mut tx, &connection).await?;
         sync_store::remove(&mut tx, &connection).await?;
         file_store::detach(&mut tx, scope.tenant(), connection.id).await?;
         connections::delete(&mut tx, connection).await?;
