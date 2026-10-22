@@ -67,7 +67,7 @@ fn sync_key(html: &str) -> Result<String> {
         .nth(1)
         .ok_or("sync button missing")?;
     let key = part
-        .split("data-value=\"")
+        .split("value=\"")
         .nth(1)
         .ok_or("page key missing")?
         .split('"')
