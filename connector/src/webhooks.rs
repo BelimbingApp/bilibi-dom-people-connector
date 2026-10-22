@@ -92,12 +92,24 @@ impl Connector {
         let enabled = update.enabled.unwrap_or(before.enabled);
         let secret = match update.secret.as_deref() {
             Some("") => None,
-            Some(secret) => Some(self.settings.seal_owned(
-                SECRET_OWNER,
-                connection.tenant_id,
-                connection.id,
-                &json!(secret),
-            )?),
+            Some(secret) => {
+                // Match Settings::put: a syntactically valid but wrong
+                // installation key must not overwrite existing ciphertext.
+                if let Some(stored) = before.secret.as_ref() {
+                    self.settings.open_owned(
+                        SECRET_OWNER,
+                        connection.tenant_id,
+                        connection.id,
+                        stored,
+                    )?;
+                }
+                Some(self.settings.seal_owned(
+                    SECRET_OWNER,
+                    connection.tenant_id,
+                    connection.id,
+                    &json!(secret),
+                )?)
+            }
             None => before.secret.clone(),
         };
         if enabled && secret.is_none() {
