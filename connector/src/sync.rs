@@ -81,7 +81,7 @@ fn fresh(c: Option<&Connection>, checkpoint: &Option<Checkpoint>, policy: SyncPo
     }
 }
 impl Connector {
-    async fn sync_policy(
+    pub(crate) async fn sync_policy(
         &self,
         client: &(impl GenericClient + Sync),
         scope: &Scope,

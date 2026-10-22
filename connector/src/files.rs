@@ -94,7 +94,7 @@ fn present(row: Value, minutes: i64) -> Result<FileReceipt> {
     receipt.state = state;
     Ok(receipt)
 }
-async fn policy(
+pub(crate) async fn policy(
     settings: &Settings,
     client: &(impl GenericClient + Sync),
     scope: &Scope,
@@ -439,6 +439,13 @@ impl Connector {
                     .ok_or(ConnectorError::NotFound)?,
             )
             .await?)
+    }
+    pub(crate) async fn cleanup_retained_file(&self, scope: &Scope, company: i64, artifact: &str) -> Result<()> {
+        let mut client = self.db.get().await.map_err(Error::from)?;
+        authorize(&**client, scope, company).await?;
+        let owner = self.file_owner();
+        self.artifacts.for_owner(scope, OrganisationId::new(company)?, &owner)
+            .delete(&mut client, artifact).await.map_err(|_| ConnectorError::ArtifactCleanupFailed)
     }
     pub async fn purge_expired_files(
         &self,

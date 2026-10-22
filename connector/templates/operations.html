@@ -1,0 +1,10 @@
+{# Bilimbi Connector.Web.OperationsLive #}
+{% import "components.html" as ui %}
+{% import "feedback.html" as feedback %}
+{% call feedback::flash_group(messages=flash) %}{% endcall %}
+{% call ui::page(id="people-operations") %}
+{% call ui::header() %}People connection health{% endcall %}
+{{ selector }}
+{{ content }}
+{{ dialog }}
+{% endcall %}
