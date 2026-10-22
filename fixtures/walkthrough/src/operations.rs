@@ -358,6 +358,7 @@ pub async fn operations_walkthrough() -> Result<()> {
         .get(0);
     require(unpurged, "failed Artifacts cleanup cannot delete a receipt")?;
     client.batch_execute("DROP TRIGGER kc5_artifact_hold ON base_artifacts; DROP FUNCTION kc5_artifact_hold(); UPDATE people_connector_retention_attempts SET attempted_at=clock_timestamp()-interval '61 minutes' WHERE tenant_id=1 AND platform_company_id=1").await?;
+    client.execute("UPDATE base_artifacts SET expires_at=created_at+interval '1 microsecond' WHERE tenant_id=1 AND public_id=$1",&[&receipt.artifact_id]).await?;
     // Block the receipt deletion AFTER Artifacts commits cleanup: retry must be idempotent.
     client.batch_execute("CREATE FUNCTION kc5_receipt_hold() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture receipt hold'; END $$; CREATE TRIGGER kc5_receipt_hold BEFORE DELETE ON people_connector_file_exchanges FOR EACH ROW EXECUTE FUNCTION kc5_receipt_hold()").await?;
     let result = connector.purge(&manager, 1).await?;
@@ -406,6 +407,7 @@ pub async fn operations_walkthrough() -> Result<()> {
         .await?
         .receipt;
     client.execute("UPDATE people_connector_file_exchanges SET inserted_at=clock_timestamp()-interval '5 days',expires_at=clock_timestamp()-interval '2 days' WHERE tenant_id=1 AND id::text=$1",&[&detached.id]).await?;
+    client.execute("UPDATE base_artifacts SET expires_at=created_at+interval '1 microsecond' WHERE tenant_id=1 AND public_id=$1",&[&detached.artifact_id]).await?;
     connector.remove_connection(&manager, 1).await?;
     require(
         absent
