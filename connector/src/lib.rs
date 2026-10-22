@@ -35,6 +35,11 @@
 //!
 //! See `README.md`.
 mod connections;
+mod file_format;
+mod file_store;
+mod files;
+mod files_web;
+pub use files::{FileExchange, FilePolicy, FileReceipt, FileSummary};
 mod contributions;
 mod sync;
 mod sync_store;
@@ -121,7 +126,9 @@ pub enum ConnectorError {
     AdapterUnavailable,
     #[error("A synchronisation is already running for this company. Try again when it finishes.")]
     SyncInProgress,
-    #[error("Enter a request key of 1–100 letters, digits, dots, underscores, colons or hyphens, starting with a letter or digit.")]
+    #[error(
+        "Enter a request key of 1–100 letters, digits, dots, underscores, colons or hyphens, starting with a letter or digit."
+    )]
     InvalidIdempotencyKey,
     #[error("Enter whole numbers within the ranges shown.")]
     InvalidPolicy(&'static str),
@@ -130,6 +137,54 @@ pub enum ConnectorError {
     /// A database or capture failure; never a refusal.
     #[error(transparent)]
     Failed(Error),
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    InvalidFile,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    InvalidFilePolicy,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    FileTooLarge,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    TooManyRecords,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    ConnectionChanged,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    MissingFile,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    PurgeIncomplete,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    FileExchangeDisabled,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    FileExchangeInProgress,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    FileExchangeAbandoned,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    DirectoryUnavailable,
+    #[error(
+        "File exchange refused. Check the connection, file policy and private storage settings."
+    )]
+    FileStorage(#[from] bilibi_artifacts::Error),
 }
 impl From<Error> for ConnectorError {
     fn from(error: Error) -> Self {
@@ -217,6 +272,7 @@ pub struct Connector {
     mutations: Arc<MutationBoundary>,
     settings: Arc<Settings>,
     ports: Arc<Ports>,
+    artifacts: Arc<bilibi_artifacts::Artifacts>,
     adapters: Adapters,
     registry: Registry,
 }
@@ -238,6 +294,7 @@ impl Connector {
             mutations: services.get("base/database.mutations")?,
             settings: services.get("base/settings.store")?,
             ports,
+            artifacts: services.get("base/artifacts.store")?,
             adapters: Adapters::from_catalog(catalog, modules)?,
             registry,
         })
@@ -437,6 +494,7 @@ impl Connector {
             .ok_or(ConnectorError::Disconnected)?;
         self.delete_credential(&mut tx, scope, &connection).await?;
         sync_store::remove(&mut tx, &connection).await?;
+        file_store::detach(&mut tx, scope.tenant(), connection.id).await?;
         connections::delete(&mut tx, connection).await?;
         tx.commit().await?;
         Ok(())

@@ -1,0 +1,13 @@
+{# Bilimbi Connector.Web.FilesLive: directory settings, review upload and recent receipts. #}
+{% import "components.html" as ui %}
+<section id="people-files-directory-section" class="mt-5 space-y-5">
+{% call ui::section_heading(title="Directory files",description="Imports are retained for review. Synchronise the native connection to refresh live directory records.") %}{% endcall %}
+{% if !people_available %}<p>People is not mounted. Directory file import, export and downloads are unavailable.</p>{% endif %}
+{% if private_settings %}<a href="/system/settings">Private storage and retention settings</a>{% endif %}
+{{ policy }}
+{{ import }}
+{% if people_available %}{% call ui::button(id="people-files-export",event="export",disabled=disabled,working="Exporting…") %}Export directory{% endcall %}{% endif %}
+{% call ui::button(id="people-files-purge",event="request_purge") %}Remove expired files{% endcall %}
+<p class="text-sm text-muted">Downloads require a current enabled connection and an unexpired retained file.</p>
+{{ history }}
+</section>
