@@ -139,7 +139,8 @@ impl Connector {
             .ok_or(ConnectorError::AdapterUnavailable)?;
         let policy = self.sync_policy(tx.sql(), scope, company).await?;
         // A timed-out run is persisted as unknown before replay or a new reservation.
-        for raw in store::rows(tx.sql(), Table::Run, &c).await? {
+        for row in tx.sql().query("SELECT to_jsonb(r) FROM people_connector_sync_runs r WHERE tenant_id=$1 AND connection_id=$2 AND state='running'", &[&c.tenant_id,&c.id]).await.map_err(Error::from)? {
+            let raw:Value=row.get(0);
             let old: SyncRun = store::decode(raw.clone())?;
             if expired(&old, policy) {
                 close(
@@ -163,16 +164,12 @@ impl Connector {
                 .await?;
             }
         }
-        let runs = store::rows(tx.sql(), Table::Run, &c).await?;
-        if let Some(raw) = runs
-            .iter()
-            .find(|v| v["idempotency_key"] == idempotency_key)
-        {
-            let run = store::decode(raw.clone())?;
+        if let Some(row) = tx.sql().query_opt("SELECT to_jsonb(r) FROM people_connector_sync_runs r WHERE tenant_id=$1 AND connection_id=$2 AND idempotency_key=$3", &[&c.tenant_id,&c.id,&idempotency_key]).await.map_err(Error::from)? {
+            let run=store::decode(row.get(0))?;
             tx.commit().await?;
             return Ok(run);
         }
-        if runs.iter().any(|v| v["state"] == "running") {
+        if tx.sql().query_opt("SELECT 1 FROM people_connector_sync_runs WHERE tenant_id=$1 AND connection_id=$2 AND state='running'", &[&c.tenant_id,&c.id]).await.map_err(Error::from)?.is_some() {
             return Err(ConnectorError::SyncInProgress);
         }
         let cp = checkpoint(tx.sql(), &c).await?;
@@ -686,7 +683,10 @@ async fn close(
     store::decode(store::save(tx, Table::Run, Some(raw), after).await?)
 }
 fn digest(bytes: impl AsRef<[u8]>) -> String {
-    format!("{:x}", Sha256::digest(bytes.as_ref()))
+    Sha256::digest(bytes.as_ref())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 type Identity = (RecordKind, String, String);
 fn identity(raw: &Value) -> Option<Identity> {
@@ -975,7 +975,10 @@ async fn apply(
             resolve_key(tx, c, "organisation:unavailable").await?;
         }
         let new_version = version(&cp) + 1;
-        let before = cp.as_ref().map(store::encode).transpose()?;
+        let before = store::rows(tx.sql(), Table::Checkpoint, c)
+            .await?
+            .into_iter()
+            .next();
         store::save(tx,Table::Checkpoint,before,json!({"tenant_id":c.tenant_id,"connection_id":c.id,"version":new_version,"resume_cursor":feed.resume,"as_of_at":feed.as_of.to_string()})).await?;
         run["checkpoint_version"] = json!(new_version);
         resolve_key(tx, c, "feed:refused").await?;

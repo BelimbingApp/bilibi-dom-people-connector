@@ -210,3 +210,13 @@ A bootstrap or a changes pass whose every page declares `snapshot: true` deactiv
 Every write requires `people-connector.connections.manage`, a writable company and a locked connection when one exists. `request_port` checks a provider declaration and enabled connection but always refuses: callers cannot obtain an adapter or activate writes through it. Unsupported direction or capability is `Unsupported`; a disabled or different provider is `Disconnected`; an enabled declared port is `AdapterUnavailable`. Only `synchronise` invokes an adapter.
 
 Migration `people-connector-connector-002-sync` adds `people_connector_sync_checkpoints`, `people_connector_sync_runs`, `people_connector_workforce_records` and `people_connector_reconciliation_issues`. Their foreign keys bind both tenant and connection. A mapping or provider change clears the old records and checkpoint, preserving runs and issues. Removal audits deletion of all sync rows before deleting the connection.
+
+## Proving a sync change
+
+Run the database walkthrough on a new disposable database:
+
+```sh
+BILIBI_ENV=development DATABASE_URL=postgres://... cargo run -p bilibi-people-connector-walkthrough --example sync
+```
+
+The example installs the Platform fixture, then uses `Connector::from_catalog` with an explicit fixture deployment catalog. Its provider reports distinct platform and workforce company IDs. Its adapter produces current, stale, unavailable, refused and interrupted reads. These fixtures never enter application inventory or production seeds. The regular service factory uses the same constructor with the installed catalog and `Providers::installed()`.

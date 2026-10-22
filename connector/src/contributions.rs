@@ -5,11 +5,9 @@
 //! and the encrypted company setting that holds a provider credential.
 //! Routes, the page writes and the other eighteen settings land with their
 //! slices (port plan rows KC1 to KC6).
-use crate::adapters::Adapters;
 use crate::contracts::Providers;
 use crate::{Connector, MODULE, SERVICE};
 use bilibi_authz::{CapabilityDefinition as C, VocabularyContribution, VOCABULARY};
-use bilibi_database::{Db, MutationBoundary};
 use bilibi_menu::{MenuItem, Requirement, ITEMS};
 use bilibi_module_registry::{Catalog, Contribution, Layer, Module, Provenance, Service};
 use bilibi_ports::Ports;
@@ -65,14 +63,10 @@ inventory::submit! {
                 // own: `Services::catalog` is set only after every factory ran.
                 let modules = bilibi_module_registry::discover()?;
                 let catalog = Catalog::discover(&modules)?;
-                Ok(Arc::new(Connector {
-                    db: services.get::<Db>("base/database.pool")?.as_ref().clone(),
-                    mutations: services.get::<MutationBoundary>("base/database.mutations")?,
-                    settings: services.get("base/settings.store")?,
-                    ports: services.get::<Ports>(bilibi_ports::SERVICE)?,
-                    adapters: Adapters::from_catalog(&catalog, &modules)?,
-                    registry: Providers::installed(),
-                }))
+                Ok(Arc::new(Connector::from_catalog(
+                    services, &catalog, &modules, Providers::installed(),
+                    services.get::<Ports>(bilibi_ports::SERVICE)?,
+                )?))
             },
         }],
     }

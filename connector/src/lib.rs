@@ -222,6 +222,26 @@ pub struct Connector {
 }
 
 impl Connector {
+    /// Constructs the facade for an explicit deployment catalog. The normal
+    /// service factory uses the installed catalog and provider declarations.
+    /// Adapters still require validated catalog contributions; every call
+    /// retains the same authorization, mapping and mutation boundaries.
+    pub fn from_catalog(
+        services: &bilibi_module_registry::Services,
+        catalog: &bilibi_module_registry::Catalog,
+        modules: &[&bilibi_module_registry::Module],
+        registry: Registry,
+        ports: Arc<Ports>,
+    ) -> bilibi_module_registry::Result<Self> {
+        Ok(Self {
+            db: services.get::<Db>("base/database.pool")?.as_ref().clone(),
+            mutations: services.get("base/database.mutations")?,
+            settings: services.get("base/settings.store")?,
+            ports,
+            adapters: Adapters::from_catalog(catalog, modules)?,
+            registry,
+        })
+    }
     /// The providers an operator may choose ([`Providers::installed`]).
     pub fn registry(&self) -> &Registry {
         &self.registry

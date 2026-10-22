@@ -24,3 +24,11 @@ bilibi-walkthrough-fixture = { path = "../../../../../fixtures/walkthrough" }
 bilibi-web.workspace = true
 tokio.workspace = true
 tokio-postgres.workspace = true
+
+# KC1 sync proof: an explicit deployment catalog, never a product adapter.
+bilibi-ports.workspace = true
+bilibi-company.workspace = true
+bilibi-party-ids.workspace = true
+inventory.workspace = true
+jiff = "0.2.38"
+serde_json.workspace = true
