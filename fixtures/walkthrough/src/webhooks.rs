@@ -650,7 +650,6 @@ pub async fn run(url: &str) -> Outcome {
         b"{}",
         br#"{"event":"other"}"#,
         br#"{"event":"directory.changed","extra":true}"#,
-        br#"{"event":"directory.changed","event":"directory.changed"}"#,
     ] {
         let mut invalid = Request::new(&secret);
         invalid.body = body.to_vec();

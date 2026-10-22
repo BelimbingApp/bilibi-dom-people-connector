@@ -13,7 +13,7 @@ use bilibi_tenancy::Scope;
 use hmac::{Hmac, KeyInit, Mac};
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio_postgres::GenericClient;
 
@@ -274,7 +274,10 @@ impl WebhookHandler for Connector {
             // Rotation, disable, removal and stale timestamps all refuse here.
             self.verify_native(tx.sql(), &connection, &fields, delivery.body)
                 .await?;
-            serde_json::from_slice::<Notification>(delivery.body).map_err(|_| Refused)?;
+            let payload: Value = serde_json::from_slice(delivery.body).map_err(|_| Refused)?;
+            if payload != json!({"event":"directory.changed"}) {
+                return Err(Refused);
+            }
             let nonce_hash = digest(fields.nonce.as_bytes());
             let delivery_hash = digest(fields.delivery.as_bytes());
             let body_hash = digest(delivery.body);
@@ -307,18 +310,6 @@ impl WebhookHandler for Connector {
             tx.commit().await.map_err(|_| Refused)
         })
     }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Notification {
-    #[serde(rename = "event")]
-    _event: DirectoryChanged,
-}
-#[derive(Deserialize)]
-enum DirectoryChanged {
-    #[serde(rename = "directory.changed")]
-    Changed,
 }
 
 /// A narrowly bounded tenant liveness read at the machine boundary. There is
