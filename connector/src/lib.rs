@@ -38,7 +38,7 @@ mod contributions;
 
 pub mod adapters;
 pub mod contracts;
-pub mod people;
+mod people;
 
 pub use adapters::{
     Adapter, Adapters, Freshness, Page, Pass, PortAuthorization, PortRequest, ReadFuture, ReadPort,
@@ -49,7 +49,7 @@ pub use contracts::{
     CAPABILITY_KEYS, NATIVE_PROVIDER_ID,
 };
 pub use contributions::{CAPABILITIES, CONNECTIONS_PATH, CREDENTIAL_KEY, MANAGE, VIEW};
-pub use people::{Read, WorkforceCompany, DIRECTORY_PORT};
+pub use people::{Read, Reference, WorkforceCompany, DIRECTORY_PORT, NATIVE_SOURCE_ID};
 
 use bilibi_company::{organisation, WriteError};
 use bilibi_database::{Db, Error, MutationBoundary, MutationTransaction};
@@ -243,9 +243,12 @@ impl Connector {
         let mut client = self.db.get().await.map_err(Error::from)?;
         let company_id = authorize(&**client, scope, platform_company_id).await?;
         let provider = self.registry.fetch(provider_id)?.clone();
-        let current = Status::from_workforce(
-            people::company(&self.ports, &**client, scope, company_id).await?,
-        )?;
+        let mut tx = self
+            .begin(&mut client, scope, "people-connector.configure_connection")
+            .await?;
+        require_writable(&tx, scope, company_id).await?;
+        let current =
+            Status::from_workforce(people::company(&self.ports, &tx, scope, company_id).await?)?;
         let tenant = scope.tenant();
         let mapping = Mapping {
             provider_id: provider.id.clone(),
@@ -253,10 +256,6 @@ impl Connector {
             workforce_source_id: current.workforce_source_id.clone(),
             workforce_company_id: current.workforce_company_id,
         };
-        let mut tx = self
-            .begin(&mut client, scope, "people-connector.configure_connection")
-            .await?;
-        require_writable(&tx, scope, company_id).await?;
         if connections::workforce_company_taken(
             tx.sql(),
             tenant,
@@ -301,8 +300,12 @@ impl Connector {
     ) -> Result<()> {
         let mut client = self.db.get().await.map_err(Error::from)?;
         let company_id = authorize(&**client, scope, platform_company_id).await?;
+        let mut tx = self
+            .begin(&mut client, scope, "people-connector.put_credential")
+            .await?;
+        require_writable(&tx, scope, company_id).await?;
         let (connection, provider) = self
-            .connection_provider(&**client, scope, company_id)
+            .connection_provider(tx.sql(), scope, company_id)
             .await?;
         if provider.credential != Credential::Secret {
             return Err(ConnectorError::CredentialNotRequired);
@@ -310,10 +313,6 @@ impl Connector {
         if !secret_valid(secret) {
             return Err(ConnectorError::InvalidCredential);
         }
-        let mut tx = self
-            .begin(&mut client, scope, "people-connector.put_credential")
-            .await?;
-        require_writable(&tx, scope, company_id).await?;
         self.settings
             .put(
                 &mut tx,
@@ -336,19 +335,16 @@ impl Connector {
     pub async fn clear_credential(&self, scope: &Scope, platform_company_id: i64) -> Result<()> {
         let mut client = self.db.get().await.map_err(Error::from)?;
         let company_id = authorize(&**client, scope, platform_company_id).await?;
-        let (_, provider) = self
-            .connection_provider(&**client, scope, company_id)
-            .await?;
-        if provider.credential != Credential::Secret {
-            return Err(ConnectorError::CredentialNotRequired);
-        }
         let mut tx = self
             .begin(&mut client, scope, "people-connector.clear_credential")
             .await?;
         require_writable(&tx, scope, company_id).await?;
-        let connection = connections::find(tx.sql(), scope.tenant(), company_id, true)
-            .await?
-            .ok_or(ConnectorError::Disconnected)?;
+        let (connection, provider) = self
+            .connection_provider(tx.sql(), scope, company_id)
+            .await?;
+        if provider.credential != Credential::Secret {
+            return Err(ConnectorError::CredentialNotRequired);
+        }
         self.delete_credential(&mut tx, scope, &connection).await?;
         if connection.enabled {
             connections::set_enabled(&mut tx, connection, false).await?;
@@ -368,20 +364,22 @@ impl Connector {
     ) -> Result<Status> {
         let mut client = self.db.get().await.map_err(Error::from)?;
         let company_id = authorize(&**client, scope, platform_company_id).await?;
-        let current = self.status_on(&client, scope, company_id).await?;
-        let (_, provider) = self
-            .connection_provider(&**client, scope, company_id)
-            .await?;
-        if enabled && provider.credential == Credential::Secret && !current.credential_stored {
-            return Err(ConnectorError::CredentialMissing);
-        }
         let mut tx = self
             .begin(&mut client, scope, "people-connector.set_enabled")
             .await?;
         require_writable(&tx, scope, company_id).await?;
-        let connection = connections::find(tx.sql(), scope.tenant(), company_id, true)
-            .await?
-            .ok_or(ConnectorError::Disconnected)?;
+        let current =
+            Status::from_workforce(people::company(&self.ports, &tx, scope, company_id).await?)?;
+        let (connection, provider) = self
+            .connection_provider(tx.sql(), scope, company_id)
+            .await?;
+        require_mapping(&connection, &current)?;
+        if enabled
+            && provider.credential == Credential::Secret
+            && !self.credential_stored(tx.sql(), scope, company_id).await?
+        {
+            return Err(ConnectorError::CredentialMissing);
+        }
         if connection.enabled != enabled {
             connections::set_enabled(&mut tx, connection, enabled).await?;
         }
@@ -394,12 +392,6 @@ impl Connector {
     pub async fn remove_connection(&self, scope: &Scope, platform_company_id: i64) -> Result<()> {
         let mut client = self.db.get().await.map_err(Error::from)?;
         let company_id = authorize(&**client, scope, platform_company_id).await?;
-        if connections::find(&**client, scope.tenant(), company_id, false)
-            .await?
-            .is_none()
-        {
-            return Err(ConnectorError::Disconnected);
-        }
         let mut tx = self
             .begin(&mut client, scope, "people-connector.remove_connection")
             .await?;
@@ -427,22 +419,10 @@ impl Connector {
         else {
             return Ok(current);
         };
-        if connection.workforce_source_id != current.workforce_source_id
-            || connection.workforce_company_id != current.workforce_company_id
-        {
-            return Err(ConnectorError::MappingChanged);
-        }
+        require_mapping(&connection, &current)?;
         let credential_stored = self
-            .settings
-            .resolve_masked(
-                client,
-                scope,
-                Target::Company(OrganisationId::new(connection.platform_company_id)?),
-                &[CREDENTIAL_KEY],
-            )
-            .await?
-            .get(CREDENTIAL_KEY)
-            .is_some_and(|resolved| resolved.overridden);
+            .credential_stored(client, scope, connection.platform_company_id)
+            .await?;
         Ok(Status {
             state: if connection.enabled {
                 ConnectionState::Enabled
@@ -455,14 +435,35 @@ impl Connector {
         })
     }
 
-    /// The company's connection and its installed provider.
+    /// Reports only the presence of the encrypted company override.
+    async fn credential_stored(
+        &self,
+        client: &(impl GenericClient + Sync),
+        scope: &Scope,
+        company_id: i64,
+    ) -> Result<bool> {
+        Ok(self
+            .settings
+            .resolve_masked(
+                client,
+                scope,
+                Target::Company(OrganisationId::new(company_id)?),
+                &[CREDENTIAL_KEY],
+            )
+            .await?
+            .get(CREDENTIAL_KEY)
+            .is_some_and(|resolved| resolved.overridden))
+    }
+
+    /// The company's locked connection and its installed provider, read only
+    /// after the company lock so concurrent provider changes cannot race it.
     async fn connection_provider(
         &self,
         client: &(impl GenericClient + Sync),
         scope: &Scope,
         company_id: i64,
     ) -> Result<(Connection, &Provider)> {
-        let connection = connections::find(client, scope.tenant(), company_id, false)
+        let connection = connections::find(client, scope.tenant(), company_id, true)
             .await?
             .ok_or(ConnectorError::Disconnected)?;
         let provider = self.registry.fetch(&connection.provider_id)?;
@@ -522,13 +523,25 @@ async fn require_writable(
 ) -> Result<()> {
     organisation::require_writable(tx.sql(), scope, company_id, true)
         .await
-        .map(|_| ())
         .map_err(|error| match error {
             WriteError::NotFound => ConnectorError::NotFound,
             WriteError::Archived => ConnectorError::CompanyArchived,
             WriteError::Access(error) => error.into(),
             _ => ConnectorError::Unauthorized,
-        })
+        })?;
+    // A grant may have been revoked while this write waited for the company
+    // lock. Re-prove it on the transaction that will perform the mutation.
+    authorize(tx.sql(), scope, company_id).await?;
+    Ok(())
+}
+
+fn require_mapping(connection: &Connection, current: &Status) -> Result<()> {
+    if connection.workforce_source_id != current.workforce_source_id
+        || connection.workforce_company_id != current.workforce_company_id
+    {
+        return Err(ConnectorError::MappingChanged);
+    }
+    Ok(())
 }
 
 /// A credential is non-blank text of at most [`CREDENTIAL_MAX_BYTES`].
