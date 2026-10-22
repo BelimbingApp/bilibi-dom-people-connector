@@ -186,7 +186,7 @@ pub async fn operations_walkthrough() -> Result<()> {
         ("recent-failed", "failed", 0),
         ("running", "running", 0),
     ] {
-        let id:i64=client.query_one("INSERT INTO people_connector_sync_runs(tenant_id,connection_id,platform_company_id,provider_id,idempotency_key,pass,state,started_at,finished_at) VALUES(1,$1,1,'people.native',$2,'bootstrap',$3,clock_timestamp()-make_interval(days=>$4::int),CASE WHEN $3='running' THEN NULL ELSE clock_timestamp()-make_interval(days=>$4::int) END) RETURNING id",&[&connection,&key,&state,&age]).await?.get(0);
+        let id:i64=client.query_one("INSERT INTO people_connector_sync_runs(tenant_id,connection_id,platform_company_id,provider_id,idempotency_key,pass,state,started_at,finished_at) VALUES(1,$1,1,'people.native',$2,'bootstrap',$3,clock_timestamp()-make_interval(days=>$4::int),CASE WHEN $3::varchar='running' THEN NULL ELSE clock_timestamp()-make_interval(days=>$4::int) END) RETURNING id",&[&connection,&key,&state,&age]).await?.get(0);
         runs.push(id);
     }
     let config = connector.run_doctor(&manager, 1).await?;
