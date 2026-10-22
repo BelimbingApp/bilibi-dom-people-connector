@@ -31,7 +31,7 @@ impl Table {
     }
     fn columns(self) -> &'static str {
         match self {
-        Self::Checkpoint => "tenant_id,connection_id,version,resume_cursor,as_of_at",
+        Self::Checkpoint => "tenant_id,connection_id,version,resume_cursor,as_of_at,bootstrap_required",
         Self::Run => "tenant_id,connection_id,platform_company_id,provider_id,idempotency_key,pass,state,reason,checkpoint_version,as_of_at,applied,unchanged,superseded,deactivated,refused,started_at,finished_at",
         Self::Record => "tenant_id,connection_id,kind,source_id,stable_id,workforce_company_id,active,name,code,email,supervisor_stable_id,parent_stable_id,version,vacant,assignments_incomplete,assignments,content_hash,observed_at,deactivated_at",
         Self::Issue => "tenant_id,connection_id,issue_key,kind,reason,severity,record_kind,stable_id,status,occurrences,first_seen_at,last_seen_at,resolved_at",
@@ -69,8 +69,11 @@ pub(crate) async fn save(
     tx: &mut MutationTransaction<'_>,
     table: Table,
     before: Option<Value>,
-    values: Value,
+    mut values: Value,
 ) -> Result<Value> {
+    if matches!(table, Table::Checkpoint) && values.get("bootstrap_required").is_none() {
+        values["bootstrap_required"] = json!(false);
+    }
     Ok(tx.mutate(move |sql| Box::pin(async move {
         let name = table.name();
         let cols = table.columns();

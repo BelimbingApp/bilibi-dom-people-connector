@@ -45,6 +45,15 @@ pub(crate) async fn policy(client: &impl GenericClient, c: &Connection) -> Resul
     })
 }
 
+/// The backup contract excludes even the encrypted secret envelope.
+pub(crate) async fn nonsecret_policy(
+    client: &(impl GenericClient + Sync),
+    c: &Connection,
+) -> Result<(bool, i32)> {
+    let row=client.query_opt("SELECT webhook_enabled,webhook_max_skew_seconds FROM people_connector_connections WHERE tenant_id=$1 AND id=$2", &[&c.tenant_id,&c.id]).await.map_err(Error::from)?.ok_or(ConnectorError::Disconnected)?;
+    Ok((row.get(0), row.get(1)))
+}
+
 pub(crate) async fn save_policy(
     tx: &mut MutationTransaction<'_>,
     c: &Connection,

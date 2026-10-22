@@ -1,0 +1,10 @@
+{# Bilimbi Connector.Web.BackupsLive, shared controls and server-held confirmation. #}
+{% import "components.html" as ui %}
+{% import "feedback.html" as feedback %}
+{% call feedback::flash_group(messages=flash) %}{% endcall %}
+{% call ui::page(id="people-backups") %}
+{% call ui::header(actions=actions) %}People connection backups{% endcall %}
+{{ selector }}
+{{ content }}
+{{ dialog }}
+{% endcall %}

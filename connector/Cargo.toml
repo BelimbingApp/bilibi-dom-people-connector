@@ -25,6 +25,7 @@ bilibi-module-registry.workspace = true
 bilibi-party-ids.workspace = true
 bilibi-ports.workspace = true
 bilibi-settings.workspace = true
+bilibi-system.workspace = true
 bilibi-tenancy.workspace = true
 inventory.workspace = true
 data-encoding.workspace = true
