@@ -8,7 +8,7 @@ use bilibi_database::{Db, Error, Result};
 use bilibi_datetime::{DisplayContext, DisplayPolicy, Format, Precision};
 use bilibi_module_registry::{
     contributions::{Access, Method, PageWrites, Pending, Route, PAGE_WRITES, ROUTES},
-    Contribution, Provenance, Services,
+    Catalog, Contribution, Provenance, Services,
 };
 use bilibi_tenancy::{NamedOrganisation, OrganisationDirectory, Scope};
 use bilibi_ui::{
@@ -43,7 +43,17 @@ inventory::submit! { Contribution::new(PAGE_WRITES, PAGE_ID, Provenance { module
 pub(crate) fn pages_service(
     services: &Services,
 ) -> bilibi_module_registry::Result<Arc<dyn std::any::Any + Send + Sync>> {
+    // Catalog validation has run before service installation. The Operations
+    // slice is independent; only link to it once its route is contributed.
+    let modules = bilibi_module_registry::discover()?;
+    let catalog = Catalog::discover(&modules)?;
+    let operations_available = catalog.entries::<Route>(ROUTES)?.iter().any(|entry| {
+        entry
+            .get::<Route>()
+            .is_ok_and(|route| route.path == "/integrations/people/operations")
+    });
     Ok(Arc::new(PageService(Arc::new(Pages {
+        operations_available,
         connector: services.get(crate::SERVICE)?,
         db: services.get::<Db>("base/database.pool")?.as_ref().clone(),
         display: services.get("base/datetime.display")?,
@@ -53,6 +63,7 @@ pub(crate) fn pages_service(
 }
 #[derive(Clone)]
 struct Pages {
+    operations_available: bool,
     connector: Arc<Connector>,
     db: Db,
     display: Arc<DisplayPolicy>,
@@ -573,6 +584,7 @@ impl State {
                     if self.can_manage {
                         body.push(&render(ConnectionLinks {
                             company: selected.record.id.get(),
+                            operations_available: self.pages.operations_available,
                         })?);
                         body.push(&self.provider_form(Some(status))?);
                         if self
@@ -584,7 +596,8 @@ impl State {
                                 "credential[secret]",
                                 "credential",
                             )
-                            .label("Provider credential");
+                            .label("Provider credential")
+                            .errors(self.field_errors("save_credential"));
                             if status.credential_stored {
                                 secret = secret.stored();
                             }
@@ -672,6 +685,13 @@ impl State {
         }
         .render()
         .map_err(|_| Error::Internal)
+    }
+    fn field_errors(&self, event: &str) -> Vec<String> {
+        self.form_error
+            .as_ref()
+            .filter(|(action, _)| action == event)
+            .map(|(_, message)| vec![message.clone()])
+            .unwrap_or_default()
     }
     fn form(
         &self,
@@ -822,6 +842,7 @@ impl State {
                     .and_then(|s| s.provider_id.clone())
                     .unwrap_or_default(),
             )
+            .errors(self.field_errors("configure"))
             .options(
                 self.pages
                     .connector
@@ -1046,7 +1067,12 @@ impl State {
                         .value(value.to_string())
                         .attr("min", &min.to_string())
                         .attr("max", &max.to_string())
-                        .attr("required", ""),
+                        .attr("required", "")
+                        .errors(if name == "page_limit" {
+                            self.field_errors("save_policy")
+                        } else {
+                            vec![]
+                        }),
                 )?);
             }
             self.form(
@@ -1139,7 +1165,8 @@ impl State {
                     .value(webhook.max_skew_seconds.to_string())
                     .attr("min", "1")
                     .attr("max", "86400")
-                    .attr("required", ""),
+                    .attr("required", "")
+                    .errors(self.field_errors("save_webhook")),
             )?);
             self.form(
                 "people-connections-webhook-form",
@@ -1231,6 +1258,7 @@ struct SyncButtons<'a> {
 #[template(path = "connections_links.html")]
 struct ConnectionLinks {
     company: i64,
+    operations_available: bool,
 }
 
 #[derive(Template)]
