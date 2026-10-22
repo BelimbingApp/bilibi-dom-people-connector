@@ -1,5 +1,5 @@
 {% import "components.html" as ui %}
 <div class="flex flex-wrap gap-3">
-{% call ui::action_link(id="people-connections-files", href="/integrations/people/files?company_id={}"|format(company)) %}File exchange{% endcall %}
-{% call ui::action_link(id="people-connections-backups", href="/integrations/people/backups?company_id={}"|format(company)) %}Backups{% endcall %}
+{% call ui::action_link(id="people-connections-files", icon="", title="File exchange", href="/integrations/people/files?company_id={}"|format(company)) %}File exchange{% endcall %}
+{% call ui::action_link(id="people-connections-backups", icon="", title="Backups", href="/integrations/people/backups?company_id={}"|format(company)) %}Backups{% endcall %}
 </div>

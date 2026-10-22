@@ -358,3 +358,7 @@ pub use backups::{backup_walkthrough, BackupCompanyPort, BackupDirectory};
 #[path = "webhooks.rs"]
 mod webhook_proof;
 pub use webhook_proof::run as run_webhooks;
+
+// KC2: connections page proof uses the real page service and a disposable directory.
+mod connections_page;
+pub use connections_page::{connections_page_walkthrough, ConnectionsDirectory};

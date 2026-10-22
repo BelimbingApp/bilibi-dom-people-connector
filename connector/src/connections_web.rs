@@ -1,7 +1,7 @@
 //! Bilimbi Connector.Web.ConnectionsLive: company setup, synchronisation and inbound policy.
 use crate::{
     ConnectionState, Connector, ConnectorError, Credential, Freshness, Status, SyncOptions,
-    SyncPolicyUpdate, SyncSummary, WebhookSettingsUpdate, WebhookSummary, MANAGE, VIEW,
+    SyncPolicyUpdate, SyncSummary, WebhookSettingsUpdate, WebhookSummary, VIEW,
 };
 use askama::Template;
 use bilibi_database::{Db, Error, Result};
@@ -79,6 +79,7 @@ struct State {
     display: DisplayContext,
     instance_banner: Html,
     flash: Option<(String, StatusKind)>,
+    form_error: Option<(String, String)>,
 }
 fn list(
     query: &HashMap<String, String>,
@@ -139,6 +140,7 @@ impl State {
             display: DisplayContext::anonymous(),
             instance_banner: Html::EMPTY,
             flash: None,
+            form_error: None,
         };
         state.select(scope, query).await?;
         Ok(state)
@@ -155,6 +157,7 @@ impl State {
         self.issues_list = list(query, "issues_", ISSUE_COLUMNS)?;
         self.company = params::positive_id(query.get("company_id").map(String::as_str));
         self.pending_remove = None;
+        self.form_error = None;
         self.sync_keys.clear();
         self.mint_key();
         self.refresh(scope).await
@@ -274,6 +277,7 @@ impl State {
                 return Ok(());
             }
         }
+        self.form_error = None;
         let connector = self.pages.connector.clone();
         match event {
             "configure" => self.outcome(
@@ -443,6 +447,14 @@ impl State {
             }
             _ => {}
         }
+        if matches!(
+            event,
+            "configure" | "save_policy" | "save_webhook" | "save_credential"
+        ) {
+            if let Some((message, StatusKind::Error)) = &self.flash {
+                self.form_error = Some((event.into(), message.clone()));
+            }
+        }
         self.refresh(scope).await
     }
     fn query(&self) -> HashMap<String, String> {
@@ -572,7 +584,7 @@ impl State {
                             if status.credential_stored {
                                 secret = secret.stored();
                             }
-                            body.push(&form(
+                            body.push(&self.form(
                                 "people-connections-credential-form",
                                 "save_credential",
                                 render(secret)?,
@@ -657,6 +669,31 @@ impl State {
         .render()
         .map_err(|_| Error::Internal)
     }
+    fn form(
+        &self,
+        id: &str,
+        event: &str,
+        mut body: Html,
+        button_id: &str,
+        label: &str,
+    ) -> Result<Html> {
+        if let Some((action, message)) = &self.form_error {
+            if action == event {
+                let target = match event {
+                    "configure" => "people-connections-provider-select",
+                    "save_policy" => "people-connections-policy-page_limit",
+                    "save_webhook" => "people-connections-webhook-skew",
+                    _ => "people-connections-credential",
+                };
+                let mut summary = bilibi_ui::ErrorSummary::new(format!("{id}-errors"));
+                summary.push(target, message);
+                let mut errors = render(summary)?;
+                errors.push(&body);
+                body = errors;
+            }
+        }
+        form(id, event, body, button_id, label)
+    }
     fn provider<'a>(&'a self, status: &Status) -> Option<&'a crate::Provider> {
         status
             .provider_id
@@ -675,6 +712,9 @@ impl State {
             })
     }
     fn credential_label(&self, status: &Status) -> &'static str {
+        if status.provider_id.is_none() {
+            return "—";
+        }
         if self
             .provider(status)
             .is_some_and(|p| p.credential == Credential::None)
@@ -787,7 +827,7 @@ impl State {
                     .map(|p| bilibi_ui::Choice::new(&p.name, &p.id))
                     .collect(),
             );
-        form(
+        self.form(
             "people-connections-provider-form",
             "configure",
             render(field)?,
@@ -799,19 +839,22 @@ impl State {
             },
         )
     }
-    fn date(&self, value: Option<jiff::Timestamp>, empty: &str) -> Result<Html> {
+    fn date(&self, id: &str, value: Option<jiff::Timestamp>, empty: &str) -> Result<Html> {
         match value {
             Some(value) => {
                 let date = self
                     .display
                     .render(value, Format::DateTime, Precision::Minute);
-                render(Instant::new(
-                    &date.iso,
-                    &date.text,
-                    &date.company,
-                    &date.utc,
-                    date.mode.as_str(),
-                ))
+                render(DateTime {
+                    id,
+                    instant: Instant::new(
+                        &date.iso,
+                        &date.text,
+                        &date.company,
+                        &date.utc,
+                        date.mode.as_str(),
+                    ),
+                })
             }
             None => Ok(Html::text(empty)),
         }
@@ -837,7 +880,7 @@ impl State {
                     },
                     run.state.label(),
                 )?;
-                value.push(&Html::text(format!(
+                value.push(&Html::text(&format!(
                     " {} · {} applied · {} unchanged · {} deactivated · {} refused",
                     if run.pass == crate::RunPass::Bootstrap {
                         "Full read"
@@ -863,7 +906,11 @@ impl State {
                 Fact {
                     title: "Data as of",
                     id: "people-connections-as-of",
-                    value: self.date(summary.as_of_at, "No completed pass")?,
+                    value: self.date(
+                        "people-connections-as-of-value",
+                        summary.as_of_at,
+                        "No completed pass",
+                    )?,
                 },
                 Fact {
                     title: "Last pass",
@@ -914,12 +961,19 @@ impl State {
                     "Warning"
                 },
             )?;
-            message.push(&Html::text(format!(" {}", issue.message())));
+            message.push(&Html::text(&format!(" {}", issue.message())));
             let mut row = FlexRow::new(format!("people-connections-issue-{}", issue.id))
                 .slot("issue", message)
                 .cell("record", Cell::text(&subject))
                 .cell("seen", Cell::text(issue.occurrences.to_string()))
-                .slot("last_seen", self.date(Some(issue.last_seen_at), "")?);
+                .slot(
+                    "last_seen",
+                    self.date(
+                        &format!("people-connections-issue-{}-seen", issue.id),
+                        Some(issue.last_seen_at),
+                        "",
+                    )?,
+                );
             if self.can_manage {
                 row.actions = render(Button {
                     id: &format!("people-connections-resolve-{}", issue.id),
@@ -991,7 +1045,7 @@ impl State {
                         .attr("required", ""),
                 )?);
             }
-            form(
+            self.form(
                 "people-connections-policy-form",
                 "save_policy",
                 body,
@@ -1041,7 +1095,11 @@ impl State {
                 Fact {
                     title: "Last directory-change notification",
                     id: "people-connections-webhook-received",
-                    value: self.date(webhook.last_received_at, "None yet")?,
+                    value: self.date(
+                        "people-connections-webhook-received-value",
+                        webhook.last_received_at,
+                        "None yet",
+                    )?,
                 },
             ],
         })?;
@@ -1079,7 +1137,7 @@ impl State {
                     .attr("max", "86400")
                     .attr("required", ""),
             )?);
-            form(
+            self.form(
                 "people-connections-webhook-form",
                 "save_webhook",
                 body,
@@ -1169,4 +1227,14 @@ struct SyncButtons<'a> {
 #[template(path = "connections_links.html")]
 struct ConnectionLinks {
     company: i64,
+}
+
+#[derive(Template)]
+#[template(
+    source = "{% import \"flex_table.html\" as flex %}{% call flex::instant(id=id, i=instant) %}{% endcall %}",
+    ext = "html"
+)]
+struct DateTime<'a> {
+    id: &'a str,
+    instant: Instant,
 }
