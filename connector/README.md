@@ -1,13 +1,13 @@
 # Connector
 
 `people_connector/connector` owns the integration contracts, each company's
-provider connection and, in later slices, directory synchronisation into
-Connector-owned projections, inbound notifications, file exchange,
-operations and backups. This README is the owner contract; the Bilimbi
+provider connection, directory synchronisation into Connector-owned
+projections and private directory file exchange. Inbound notifications,
+operations and backups follow in later slices. This README is the owner contract; the Bilimbi
 source it ports is
 [`connector/docs/README.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/main/connector/docs/README.md).
 
-Connections and synchronisation are available through `Connector`. The connections page (KC2), inbound notifications (KC3), file exchange (KC4), operations (KC5) and backups (KC6) follow separately.
+Connections, synchronisation and file exchange are available through `Connector`. The Files page is at `/integrations/people/files`. The connections page (KC2), inbound notifications (KC3), operations (KC5) and backups (KC6) follow separately.
 
 ## Contracts
 
