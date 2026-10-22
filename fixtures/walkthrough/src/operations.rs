@@ -437,3 +437,50 @@ pub async fn operations_walkthrough() -> Result<()> {
     println!("KC5 operations walkthrough complete");
     Ok(())
 }
+
+/// After the main proof, prepare the real mounted app for a browser purge failure.
+/// This explicit fixture command requires People and a disposable walkthrough database.
+pub async fn operations_browser_setup() -> Result<()> {
+    bilibi_base::link();
+    bilibi_core::link();
+    bilibi_domains::link();
+    bilibi_extensions::link();
+    let db = bilibi_database::pool(&std::env::var("DATABASE_URL")?)?;
+    let modules = bilibi_module_registry::discover()?;
+    let mut services = Services::default();
+    services.provide("bootstrap.database", Arc::new(db.clone()))?;
+    services.provide("bootstrap.composition", Arc::new(bilibi_web::composition()))?;
+    services.install(&modules)?;
+    let client = db.get().await?;
+    let scope = services
+        .get::<Authentication>("base/tenancy.authentication")?
+        .authenticate(&**client, 1, 1, "operations-browser-fixture".into())
+        .await?;
+    let connector = services.get::<Connector>(SERVICE)?;
+    connector
+        .configure_connection(&scope, 1, NATIVE_PROVIDER_ID)
+        .await?;
+    connector.set_enabled(&scope, 1, true).await?;
+    connector
+        .put_retention_policy(
+            &scope,
+            1,
+            json!({"sync_days":1,"batch_size":1}).as_object().unwrap(),
+        )
+        .await?;
+    let connection: i64 = client.query_one("SELECT id FROM people_connector_connections WHERE tenant_id=1 AND platform_company_id=1", &[]).await?.get(0);
+    let mut failed_id = 0;
+    for (key, state, age) in [
+        ("browser-success", "succeeded", 10),
+        ("browser-failure", "failed", 9),
+        ("browser-latest", "failed", 8),
+    ] {
+        let id: i64 = client.query_one("INSERT INTO people_connector_sync_runs(tenant_id,connection_id,platform_company_id,provider_id,idempotency_key,pass,state,started_at,finished_at) VALUES(1,$1,1,'people.native',$2,'bootstrap',$3,clock_timestamp()-make_interval(days=>$4::int),clock_timestamp()-make_interval(days=>$4::int)) ON CONFLICT (connection_id,idempotency_key) DO UPDATE SET state=EXCLUDED.state,started_at=EXCLUDED.started_at,finished_at=EXCLUDED.finished_at RETURNING id", &[&connection,&key,&state,&age]).await?.get(0);
+        if key == "browser-failure" {
+            failed_id = id;
+        }
+    }
+    client.batch_execute(&format!("CREATE OR REPLACE FUNCTION kc5_browser_hold() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.id={failed_id} THEN RAISE EXCEPTION 'fixture browser hold'; END IF; RETURN OLD; END $$; DROP TRIGGER IF EXISTS kc5_browser_hold ON people_connector_sync_runs; CREATE TRIGGER kc5_browser_hold BEFORE DELETE ON people_connector_sync_runs FOR EACH ROW EXECUTE FUNCTION kc5_browser_hold();")).await?;
+    println!("Browser fixture ready: eligible sync {failed_id} will be retained for retry.");
+    Ok(())
+}
