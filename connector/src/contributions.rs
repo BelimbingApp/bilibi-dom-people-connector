@@ -58,6 +58,9 @@ inventory::submit! {
         ), (
             "people-connector-connector-004-file-exchanges",
             include_str!("../migrations/004-file-exchanges.sql"),
+        ), (
+            "people-connector-connector-006-backups",
+            include_str!("../migrations/006-backups.sql"),
         )],
         services: &[Service {
             id: SERVICE,
@@ -205,3 +208,7 @@ file_setting!(
     "Abandon in-progress exchanges after (minutes)",
     "Mark an unfinished file exchange as abandoned after this time."
 );
+
+// KC6: Bilimbi's backup policy; changes affect newly created receipts/previews.
+sync_policy!("people-connector.backup.retention_days",30,1,3650,"Backup retention (days)","Days a new connection backup remains available.");
+sync_policy!("people-connector.backup.preview_minutes",10,1,60,"Backup preview validity (minutes)","Minutes a restore preview remains valid.");
