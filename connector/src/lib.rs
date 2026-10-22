@@ -43,8 +43,8 @@ mod file_store;
 mod files;
 mod files_web;
 pub use backup::{
-    Backup, BackupChange, BackupPolicy, BackupPreview, BackupPurge, BackupReceipt, BackupRestore,
-    BackupSummary,
+    Backup, BackupChange, BackupPolicy, BackupPolicyUpdate, BackupPreview, BackupPurge,
+    BackupReceipt, BackupRestore, BackupSummary,
 };
 pub use files::{FileExchange, FilePolicy, FileReceipt, FileSummary};
 mod contributions;

@@ -65,6 +65,20 @@ pub struct BackupPolicy {
     pub retention_days: i64,
     pub preview_minutes: i64,
 }
+/// Partial policy writes keep another operator's unrelated inline edit.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct BackupPolicyUpdate {
+    pub retention_days: Option<i64>,
+    pub preview_minutes: Option<i64>,
+}
+impl From<BackupPolicy> for BackupPolicyUpdate {
+    fn from(policy: BackupPolicy) -> Self {
+        Self {
+            retention_days: Some(policy.retention_days),
+            preview_minutes: Some(policy.preview_minutes),
+        }
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BackupReceipt {
     pub id: String,
@@ -214,10 +228,14 @@ impl Backup<'_> {
         &self,
         scope: &Scope,
         company: i64,
-        policy: BackupPolicy,
+        policy: BackupPolicyUpdate,
     ) -> Result<BackupPolicy> {
-        if !(1..=3650).contains(&policy.retention_days)
-            || !(1..=60).contains(&policy.preview_minutes)
+        if policy
+            .retention_days
+            .is_some_and(|n| !(1..=3650).contains(&n))
+            || policy
+                .preview_minutes
+                .is_some_and(|n| !(1..=60).contains(&n))
         {
             return Err(ConnectorError::InvalidBackupPolicy);
         }
@@ -233,6 +251,9 @@ impl Backup<'_> {
             .into_iter()
             .zip([policy.retention_days, policy.preview_minutes])
         {
+            let Some(value) = value else {
+                continue;
+            };
             self.connector
                 .settings
                 .put(
@@ -245,8 +266,9 @@ impl Backup<'_> {
                 .await?;
         }
         audit(&tx, "people-connector.backup.policy", company, None).await?;
+        let resolved = self.policy(tx.sql(), scope, company).await?;
         tx.commit().await?;
-        Ok(policy)
+        Ok(resolved)
     }
     async fn lock(
         &self,

@@ -260,7 +260,8 @@ pub async fn backup_walkthrough() -> Result<()> {
                 BackupPolicy {
                     retention_days: 0,
                     preview_minutes: 10,
-                },
+                }
+                .into(),
             )
             .await
             .is_err(),
@@ -273,7 +274,43 @@ pub async fn backup_walkthrough() -> Result<()> {
             BackupPolicy {
                 retention_days: 30,
                 preview_minutes: 10,
+            }
+            .into(),
+        )
+        .await?;
+    backup
+        .configure(
+            &manager,
+            1,
+            BackupPolicyUpdate {
+                preview_minutes: Some(11),
+                ..Default::default()
             },
+        )
+        .await?;
+    let policy = backup
+        .configure(
+            &manager,
+            1,
+            BackupPolicyUpdate {
+                retention_days: Some(31),
+                ..Default::default()
+            },
+        )
+        .await?;
+    require(
+        policy.preview_minutes == 11 && policy.retention_days == 31,
+        "inline policy updates preserve unrelated concurrent edits",
+    )?;
+    backup
+        .configure(
+            &manager,
+            1,
+            BackupPolicy {
+                retention_days: 30,
+                preview_minutes: 10,
+            }
+            .into(),
         )
         .await?;
     client.execute("INSERT INTO people_connector_sync_runs (tenant_id,connection_id,platform_company_id,provider_id,idempotency_key,pass,state,started_at) SELECT tenant_id,id,platform_company_id,provider_id,'backup-proof-running','bootstrap','running',clock_timestamp() FROM people_connector_connections WHERE tenant_id=1 AND platform_company_id=1",&[]).await?;

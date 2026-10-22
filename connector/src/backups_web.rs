@@ -1,5 +1,5 @@
 //! Bilimbi Connector.Web.BackupsLive. Preview and confirmation remain on the server.
-use crate::{BackupPreview, BackupSummary, Connector, ConnectorError, MANAGE};
+use crate::{BackupPolicyUpdate, BackupPreview, BackupSummary, Connector, ConnectorError, MANAGE};
 use askama::Template;
 use bilibi_database::{Db, Error, Result};
 use bilibi_datetime::{DisplayContext, DisplayPolicy, Format, Precision};
@@ -240,22 +240,23 @@ impl State {
             "save_policy" => {
                 let field = values.get("field").map(String::as_str).unwrap_or("");
                 let value = values.get("value").and_then(|v| v.parse::<i64>().ok());
-                let mut policy = self.summary.as_ref().map(|s| s.policy);
-                if let (Some(p), Some(n)) = (&mut policy, value) {
-                    match field {
-                        "retention_days" => p.retention_days = n,
-                        "preview_minutes" => p.preview_minutes = n,
-                        _ => policy = None,
-                    };
-                } else {
-                    policy = None;
-                }
-                let result = match policy {
-                    Some(p) => {
+                let update = match (field, value) {
+                    ("retention_days", Some(n)) => Some(BackupPolicyUpdate {
+                        retention_days: Some(n),
+                        ..Default::default()
+                    }),
+                    ("preview_minutes", Some(n)) => Some(BackupPolicyUpdate {
+                        preview_minutes: Some(n),
+                        ..Default::default()
+                    }),
+                    _ => None,
+                };
+                let result = match update {
+                    Some(update) => {
                         self.pages
                             .connector
                             .backups()
-                            .configure(scope, company, p)
+                            .configure(scope, company, update)
                             .await
                     }
                     None => Err(ConnectorError::InvalidBackupPolicy),
