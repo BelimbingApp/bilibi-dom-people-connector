@@ -580,7 +580,7 @@ impl State {
         if let Some(selected) = self.selected() {
             match &selected.status {
                 Ok(status) => {
-                    let mut body = Html::EMPTY;
+                    let mut body = self.connection_facts(selected, status)?;
                     if self.can_manage {
                         body.push(&render(ConnectionLinks {
                             company: selected.record.id.get(),
@@ -697,10 +697,11 @@ impl State {
         &self,
         id: &str,
         event: &str,
-        mut body: Html,
+        body: Html,
         button_id: &str,
         label: &str,
     ) -> Result<Html> {
+        let mut prefix = Html::EMPTY;
         if let Some((action, message)) = &self.form_error {
             if action == event {
                 let target = match event {
@@ -711,12 +712,11 @@ impl State {
                 };
                 let mut summary = bilibi_ui::ErrorSummary::new(format!("{id}-errors"));
                 summary.push(target, message);
-                let mut errors = render(summary)?;
-                errors.push(&body);
-                body = errors;
+                prefix = render(summary)?;
             }
         }
-        form(id, event, body, button_id, label)
+        prefix.push(&form(id, event, body, button_id, label)?);
+        Ok(prefix)
     }
     fn provider<'a>(&'a self, status: &Status) -> Option<&'a crate::Provider> {
         status
@@ -749,6 +749,51 @@ impl State {
         } else {
             "Missing"
         }
+    }
+    fn connection_facts(&self, company: &Company, status: &Status) -> Result<Html> {
+        let mut items = vec![
+            Fact {
+                title: "State",
+                id: "people-connections-state",
+                value: badge(
+                    if status.state == ConnectionState::Enabled {
+                        BadgeKind::Success
+                    } else {
+                        BadgeKind::Neutral
+                    },
+                    status.state.label(),
+                )?,
+            },
+            Fact {
+                title: "Provider",
+                id: "people-connections-provider",
+                value: Html::text(&self.provider_label(status)),
+            },
+            Fact {
+                title: "Platform company",
+                id: "people-connections-platform-company",
+                value: Html::text(&company.record.name),
+            },
+            Fact {
+                title: "Workforce company",
+                id: "people-connections-workforce-company",
+                value: Html::text(&format!(
+                    "{} · {}",
+                    status.workforce_source_id, status.workforce_company_id
+                )),
+            },
+        ];
+        if self.provider(status).is_some() {
+            items.push(Fact {
+                title: "Credential",
+                id: "people-connections-credential-state",
+                value: Html::text(self.credential_label(status)),
+            });
+        }
+        render(Facts {
+            id: "people-connections-facts",
+            items,
+        })
     }
     fn companies_table(&self) -> Result<Html> {
         let mut rows = Vec::new();
@@ -836,6 +881,7 @@ impl State {
         let field = Field::named("provider_id")
             .id("people-connections-provider-select")
             .label("Provider")
+            .wrapper_class("mb-0")
             .kind(InputKind::Select)
             .value(
                 status
@@ -1060,6 +1106,7 @@ impl State {
             ] {
                 body.push(&render(
                     Field::in_form("policy", name)
+                        .wrapper_class("mb-0")
                         .id(format!("people-connections-policy-{name}"))
                         .label(label)
                         .hint(hint)
@@ -1078,7 +1125,7 @@ impl State {
             self.form(
                 "people-connections-policy-form",
                 "save_policy",
-                body,
+                render(PolicyFieldsView { fields: body })?,
                 "people-connections-save-policy",
                 "Save policy",
             )?
@@ -1188,6 +1235,11 @@ fn form(id: &str, event: &str, body: Html, button_id: &str, label: &str) -> Resu
     render(Form {
         id,
         event,
+        class: if event == "configure" {
+            "flex flex-wrap items-end gap-3"
+        } else {
+            ""
+        },
         body,
         actions: render(Button {
             id: button_id,
@@ -1269,4 +1321,13 @@ struct ConnectionLinks {
 struct DateTime<'a> {
     id: &'a str,
     instant: Instant,
+}
+
+#[derive(Template)]
+#[template(
+    source = "<div class=\"grid gap-3 sm:grid-cols-3\">{{ fields }}</div>",
+    ext = "html"
+)]
+struct PolicyFieldsView {
+    fields: Html,
 }
