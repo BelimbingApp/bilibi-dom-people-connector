@@ -30,6 +30,7 @@ Start the product web binary on your own plain HTTP port, keeping the same envir
 ```sh
 export APP_ORIGIN=http://localhost:3192
 export BIND_ADDR=127.0.0.1:3192
+./target/debug/bilibi-web seed-production
 ./target/debug/bilibi-web run
 ```
 
