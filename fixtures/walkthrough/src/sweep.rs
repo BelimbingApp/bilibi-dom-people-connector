@@ -1,11 +1,12 @@
 //! KV1: Bilimbi Connector workflows through the installed catalog and real People port.
 //! This proof consumes People's own walkthrough records; it never owns a People dependency.
 use bilibi_authz::grants::Grants;
-use bilibi_database::{pool, MutationBoundary};
+use bilibi_database::{pool, Error, MutationBoundary};
 use bilibi_module_registry::Services;
 use bilibi_people_connector_connector::*;
 use bilibi_tenancy::{Authentication, Scope};
-use hmac::{Hmac, Mac};
+use bilibi_ui::page::{PageRequest, PageService};
+use hmac::{Hmac, KeyInit, Mac};
 use serde_json::{json, Value};
 use sha2::Sha256;
 use std::{
@@ -153,6 +154,48 @@ pub(super) async fn run(url: &str, action: &str) -> Result<()> {
                 serde_json::from_slice::<Value>(&std::fs::read(&baseline)?)? == before,
                 "unmount retains connection, directory, files, backups and checkpoint",
             )?;
+            let path = std::collections::HashMap::new();
+            let query = std::collections::HashMap::from([("company_id".into(), "1".into())]);
+            for (operation, message, withheld) in [
+                (
+                    "connections",
+                    "People is not mounted",
+                    "id=\"people-connections-synchronise\"",
+                ),
+                (
+                    "files",
+                    "People is not mounted",
+                    "id=\"people-files-export\"",
+                ),
+                ("operations", "People is absent", ""),
+                (
+                    "backups",
+                    "People is absent",
+                    "id=\"people-backups-create\"",
+                ),
+            ] {
+                let service = format!("people_connector/connector.{operation}_pages");
+                let page = services.get::<PageService<Scope, Error>>(&service)?;
+                let rendered = page
+                    .0
+                    .render(PageRequest {
+                        operation,
+                        scope: Some(&manager),
+                        path: &path,
+                        query: &query,
+                        body: &[],
+                        framed: false,
+                    })
+                    .await?;
+                prove(
+                    rendered.html.contains(message),
+                    &format!("{operation} page explains People is absent"),
+                )?;
+                prove(
+                    withheld.is_empty() || !rendered.html.contains(withheld),
+                    &format!("{operation} withholds actions requiring People"),
+                )?;
+            }
             return Ok(());
         }
         "remount" => {
