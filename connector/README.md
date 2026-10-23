@@ -4,6 +4,8 @@
 
 These features are available through `Connector`. The People connections page is at `/integrations/people/connections`, Files at `/integrations/people/files`, Operations at `/integrations/people/operations` ([health and retention](operations.md)), and Backups at `/integrations/people/backups`.
 
+The [composition sweep](sweep.md) checks these workflows with the installed native People adapter, signed HTTP delivery, and data preservation across unmount and remount.
+
 The [native notification contract](webhooks.md) describes `POST /webhooks/people-native`, the manager-only policy API and replay rules. Bilibi keeps the three company webhook policy values on its connection row, with the secret encrypted through `Settings::seal_owned`, because an inbound machine has no login scope. The Bilimbi `people-connector.webhook.*` Settings keys are not used or registered. The sender only verifies and records a receipt; it never reads the People directory or enqueues synchronisation.
 
 ## Contracts
