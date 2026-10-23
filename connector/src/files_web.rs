@@ -116,9 +116,13 @@ impl State {
         self.companies = bilibi_company::organisation::Directory
             .selectable(&**client, scope, MANAGE)
             .await?;
-        self.company = params::positive_id(query.get("company_id").map(String::as_str))
-            .filter(|id| self.companies.iter().any(|c| c.id.get() == *id))
-            .or_else(|| self.companies.first().map(|c| c.id.get()));
+        // An explicit unavailable company must never select a different write target.
+        self.company = if query.contains_key("company_id") {
+            params::positive_id(query.get("company_id").map(String::as_str))
+                .filter(|id| self.companies.iter().any(|c| c.id.get() == *id))
+        } else {
+            self.companies.first().map(|c| c.id.get())
+        };
         self.private_settings =
             bilibi_authz::decide(&**client, scope, "base.settings.global.manage")
                 .await?
