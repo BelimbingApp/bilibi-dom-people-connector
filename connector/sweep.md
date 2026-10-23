@@ -62,7 +62,7 @@ Stop only the app process you started. Move the People clone out of `apps/domain
 
 ```sh
 python3 scripts/discover-modules.py
-cargo build -p bilibi-web -p bilibi-people-connector-walkthrough --example sweep
+cargo build -p bilibi-web
 cargo run -p bilibi-people-connector-walkthrough --example sweep -- absent
 ```
 
