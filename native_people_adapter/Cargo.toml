@@ -1,0 +1,18 @@
+[package]
+name = "bilibi-people-connector-native-people-adapter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bilibi-database.workspace = true
+bilibi-module-registry.workspace = true
+bilibi-ports.workspace = true
+bilibi-tenancy.workspace = true
+bilibi-people-connector-connector = { path = "../connector" }
+inventory.workspace = true
+jiff = "0.2.38"
+serde.workspace = true
+serde_json.workspace = true

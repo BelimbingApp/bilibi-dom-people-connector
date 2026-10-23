@@ -418,19 +418,8 @@ async fn main() -> Result<()> {
         pass(&connector, &manager, "organisation-unavailable", 4)
             .await?
             .state
-            == RunState::Succeeded,
-        "unavailable organisation still applies directory",
-    )?;
-    let summary = connector
-        .sync_summary(&manager, 1)
-        .await
-        .map_err(|_| Error::Internal)?;
-    expect(
-        summary
-            .open_issues
-            .iter()
-            .any(|i| i.kind == "organisation_unavailable"),
-        "organisation absence opens issue",
+            == RunState::Unavailable,
+        "unavailable organisation stops the whole pass",
     )?;
     let directory_only = Provider::new(
         NATIVE_PROVIDER_ID,

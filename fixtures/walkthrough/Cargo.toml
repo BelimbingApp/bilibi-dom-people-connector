@@ -44,3 +44,6 @@ uuid.workspace = true
 
 # KC2: drive the actual live page service against a disposable database.
 bilibi-ui.workspace = true
+
+# KA1: the real adapter, exercised against mounted People and a fault-injection port.
+bilibi-people-connector-native-people-adapter = { path = "../../native_people_adapter" }

@@ -700,7 +700,6 @@ async fn read_streams(
                     feed.full.insert(RecordKind::Position);
                 }
             }
-            Err(Outcome::Unavailable) => feed.organisation = Some(false),
             Err(stopped) => return stopped,
         }
     }
