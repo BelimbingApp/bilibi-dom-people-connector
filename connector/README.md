@@ -27,8 +27,7 @@ capability and direction.
 co-located native People provider, `people.native` ("People (this
 installation)", contract `1.0.0`), which reads through the People directory
 port, declares `company_directory` and `employee_directory` reads and needs
-no credential. It declares `organization_directory` once the native adapter
-serves positions (KA1). Remote and third-party providers are not offered.
+no credential. It also declares `organization_directory`, served by the native adapter. Remote and third-party providers are not offered.
 
 ## Company axes
 
@@ -188,7 +187,7 @@ A timed-out pass appears unknown in summaries immediately. The next synchronisat
 
 Foreign sources, another workforce company, undeclared kinds, malformed records and unknown deactivation references become reconciliation issues. A refused identity still counts as present in a full read, so it cannot accidentally deactivate its existing record. Older observations are counted as superseded. Identical content is unchanged; assignment order does not change the content hash. A later valid record resolves its earlier refusal. If every record is refused, `feed_refused` opens and the checkpoint stays put.
 
-A bootstrap or a changes pass whose every page declares `snapshot: true` deactivates missing company and employee records. Positions deactivate only when their complete stream fits in **one page**. An unavailable organisation stream leaves all positions untouched, applies the directory stream and opens `organisation_unavailable`. Undeclared organisation with active positions opens the same issue. A successful organisation read resolves it. Empty full reads open `empty_bootstrap`. Deactivation retains records and People history stays with People.
+A bootstrap or a changes pass whose every page declares `snapshot: true` deactivates missing company and employee records. Positions deactivate only when their complete stream fits in **one page**. An unavailable declared stream stops the whole pass with nothing applied and leaves the checkpoint unchanged. Undeclared organisation with active positions opens the same issue. A successful organisation read resolves it. Empty full reads open `empty_bootstrap`. Deactivation retains records and People history stays with People.
 
 `resolve_issue(scope, company_id, issue_id)` marks an open issue of that company's current connection resolved. The next occurrence reopens it and increments its count. Summary lists at most 50 open issues.
 
