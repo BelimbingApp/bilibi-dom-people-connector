@@ -96,7 +96,7 @@ impl PortProvider for Directory {
                         p["assignments"][0]["employee_reference"]["type"] = json!("user");
                     }
                     Ok(
-                        json!({"positions":[p],"next_cursor":null,"freshness":"current",
+                        json!({"positions":[p],"next_cursor":if mode == 9 && body["cursor"].is_null() {Some("positions-2")} else {None},"freshness":"current",
                         "snapshot":true,"watermark":now}),
                     )
                 }
