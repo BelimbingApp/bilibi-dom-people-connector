@@ -30,9 +30,12 @@ Start the product web binary on your own plain HTTP port, keeping the same envir
 ```sh
 export APP_ORIGIN=http://localhost:3192
 export BIND_ADDR=127.0.0.1:3192
+cargo build -p bilibi-web
 ./target/debug/bilibi-web seed-production
 ./target/debug/bilibi-web run
 ```
+
+The Dev seed records the installation role that permits loopback HTTP. Setting `BILIBI_ENV` alone does not change that stored role.
 
 In another shell with the same database, installation key and proof directory, generate a fresh signing secret and run:
 
