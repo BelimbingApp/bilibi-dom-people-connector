@@ -85,7 +85,7 @@ inventory::submit! {
             factory: |services| Ok(Arc::new(bilibi_integration::webhooks::WebhookService(
                 services.get::<Connector>(SERVICE)?,
             ))),
-        }, Service {id:crate::backups_web::PAGE_ID,factory:crate::backups_web::pages_service}, Service {id:crate::operations_web::PAGE_ID,factory:crate::operations_web::pages_service}, Service {id:crate::files_web::PAGE_ID,factory:crate::files_web::pages_service}, Service {id:crate::files_web::DOWNLOAD_ID,factory:crate::files_web::download_service}],
+        }, Service {id:crate::connections_web::PAGE_ID,factory:crate::connections_web::pages_service}, Service {id:crate::operations_web::PAGE_ID,factory:crate::operations_web::pages_service}, Service {id:crate::backups_web::PAGE_ID,factory:crate::backups_web::pages_service}, Service {id:crate::files_web::PAGE_ID,factory:crate::files_web::pages_service}, Service {id:crate::files_web::DOWNLOAD_ID,factory:crate::files_web::download_service}],
     }
 }
 

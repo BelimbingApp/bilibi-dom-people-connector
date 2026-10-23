@@ -1,0 +1,9 @@
+{% import "components.html" as ui %}
+<div class="flex flex-wrap gap-3">
+{% if enabled %}
+{% call ui::button(id="people-connections-disable", event="set_enabled", name="enabled", value="false") %}Disable{% endcall %}
+{% else %}
+{% call ui::button(id="people-connections-enable", event="set_enabled", name="enabled", value="true", variant=bilibi_ui::ButtonVariant::Primary) %}Enable{% endcall %}
+{% endif %}
+{% call ui::button(id="people-connections-remove", event="request_remove", variant=bilibi_ui::ButtonVariant::Danger) %}Remove connection{% endcall %}
+</div>

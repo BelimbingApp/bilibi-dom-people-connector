@@ -41,3 +41,6 @@ hmac.workspace = true
 sha2.workspace = true
 data-encoding.workspace = true
 uuid.workspace = true
+
+# KC2: drive the actual live page service against a disposable database.
+bilibi-ui.workspace = true

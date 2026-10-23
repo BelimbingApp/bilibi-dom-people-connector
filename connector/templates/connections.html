@@ -1,0 +1,10 @@
+{# Bilimbi Connector.Web.ConnectionsLive. #}
+{% import "components.html" as ui %}
+{% import "feedback.html" as feedback %}
+{% call feedback::flash_group(messages=flash) %}{% endcall %}
+{% call ui::page(id="people-connections-page", variant=bilibi_ui::PageVariant::List) %}
+{% call ui::header(subtitle="Workforce connection for a company.") %}People connections{% endcall %}
+{{ selector }}
+{{ content }}
+{{ dialog }}
+{% endcall %}

@@ -2,7 +2,7 @@
 
 `people_connector/connector` owns provider connections, directory synchronisation into Connector-owned projections, signed inbound notifications, private directory files, connection health and record retention, and backup and recovery. This README is the owner contract; the Bilimbi source it ports is [`connector/docs/README.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/main/connector/docs/README.md).
 
-These features are available through `Connector`. The Files page is at `/integrations/people/files`, Operations at `/integrations/people/operations` ([health and retention](operations.md)), and Backups at `/integrations/people/backups`. The connections page (KC2) follows separately.
+These features are available through `Connector`. The People connections page is at `/integrations/people/connections`, Files at `/integrations/people/files`, Operations at `/integrations/people/operations` ([health and retention](operations.md)), and Backups at `/integrations/people/backups`.
 
 The [native notification contract](webhooks.md) describes `POST /webhooks/people-native`, the manager-only policy API and replay rules. Bilibi keeps the three company webhook policy values on its connection row, with the secret encrypted through `Settings::seal_owned`, because an inbound machine has no login scope. The Bilimbi `people-connector.webhook.*` Settings keys are not used or registered. The sender only verifies and records a receipt; it never reads the People directory or enqueues synchronisation.
 
@@ -153,7 +153,7 @@ contributed role, so an administrator grants them. The menu leaf
 **Administration › System › Integrations › People connections**
 (`admin.system.integrations.people-connections`, order 50, route
 `/integrations/people/connections`) carries the view capability; the route
-enforces it again when the page lands (KC2).
+enforces it again on each visit.
 
 ## Synchronisation
 
@@ -277,3 +277,20 @@ Snapshots keep the webhook signing window and intake flag under their original c
 A failed cleanup records its fixed error code, attempt count, and time, then waits for the retry interval. At the maximum attempts it moves to **Held cleanup** and leaves automatic batches. Correct private storage, then choose **Retry cleanup** to release the hold and try again. Cleanup remains available after a connection is removed or People is unmounted. Base Artifacts separately reconciles unpublished storage reservations.
 
 The receipt table is `people_connector_backups`, added by migration `people-connector-connector-006-backups`. `fixtures/walkthrough/examples/backups.rs` drives the real facade on a disposable database. `backups-server.rs` serves the real web host with an isolated fixture directory port for browser interaction; run it without People mounted. Neither contributes product records or a production adapter.
+
+
+## People connections page
+
+Open **Administration › System › Integrations › People connections** to choose a company, connect its provider and review synchronisation. The companies FlexTable shows connection state, provider, both company identities and whether a credential is stored. Select a company to change its connection. Both tables support column settings, sorting, compact rows and paging. Company rows start at 10 per page; the selected company stays selected while paging.
+
+The picker uses Core Company’s unarchived company directory; that projection does not currently expose an active-status filter. Viewing requires `people-connector.connections.view`. Provider choice, credentials, enable/disable, removal, synchronisation, issue resolution and policy changes require `people-connector.connections.manage` with reach to the selected company. Every write-shaped event checks access again, including opening a removal confirmation. The facade repeats its own checks under the company lock. Read-only viewers see the connection facts and review information with the write controls withheld.
+
+Choose a provider, then enable the connection. A provider that requires a credential shows a `SecretInput`; its keep-current mask never contains the stored value. An empty credential clears it. The native provider needs no credential. Removing a connection requires a `ConfirmDialog` whose company selection stays on the server; Cancel and changing company discard that selection.
+
+**Synchronise now** and **Full read** carry keys minted by the mounted page. Repeated clicks with a previously issued key replay the recorded run; a key not issued by that page is refused. Full reads use a separate `:full` suffix. The page shows freshness, the completed watermark, last-pass counts, open reconciliation issues and **Mark resolved**. The policy form controls page size, maximum age and run timeout.
+
+Inbound notifications show intake state, signing-secret presence and the last directory-change receipt. The signing field supports keeping, replacing and clearing the encrypted secret, without a reveal path. These controls call the connection-owned webhook policy described in [webhooks.md](webhooks.md). Notifications record receipts; use **Synchronise now** to refresh the directory.
+
+Without a mounted People directory port, the page explains that People is absent and withholds connection controls. Without a provider adapter, sync buttons are disabled with an explanation. A changed workforce mapping offers provider selection again so the manager can record the current identity.
+
+For the disposable page proof, mount the Connector without People, then run `cargo run -p bilibi-people-connector-walkthrough --example connections`. This example contributes its own company port with deliberately different company axes and a scripted directory. It drives the actual page service against PostgreSQL, including sync replay, malformed records, secret masking, read-only viewing and a grant revoked while a removal confirmation is open. Run `--example connections-server` with the same `DATABASE_URL`, `APP_ORIGIN` and `BIND_ADDR` to use the fixture in a browser. These contributions are confined to the examples; the product catalog has no fixture providers.

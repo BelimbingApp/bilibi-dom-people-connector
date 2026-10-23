@@ -1,0 +1,7 @@
+{# Bilimbi ConnectionsLive inbound notifications section. #}
+{% import "components.html" as ui %}
+{% call ui::section_heading(id="people-connections-webhook-heading", title="Inbound notifications", description="Notifications are recorded for review. Use Synchronise now to refresh the directory.") %}{% endcall %}
+{% call ui::card(id="people-connections-webhook") %}
+{{ facts }}
+{{ policy }}
+{% endcall %}
