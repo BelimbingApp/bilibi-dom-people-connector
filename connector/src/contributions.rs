@@ -62,6 +62,9 @@ inventory::submit! {
             "people-connector-connector-004-file-exchanges",
             include_str!("../migrations/004-file-exchanges.sql"),
         ), (
+            "people-connector-connector-005-retention-attempts",
+            include_str!("../migrations/005-retention-attempts.sql"),
+        ), (
             "people-connector-connector-006-backups",
             include_str!("../migrations/006-backups.sql"),
         )],
@@ -82,7 +85,7 @@ inventory::submit! {
             factory: |services| Ok(Arc::new(bilibi_integration::webhooks::WebhookService(
                 services.get::<Connector>(SERVICE)?,
             ))),
-        }, Service {id:crate::backups_web::PAGE_ID,factory:crate::backups_web::pages_service}, Service {id:crate::files_web::PAGE_ID,factory:crate::files_web::pages_service}, Service {id:crate::files_web::DOWNLOAD_ID,factory:crate::files_web::download_service}],
+        }, Service {id:crate::backups_web::PAGE_ID,factory:crate::backups_web::pages_service}, Service {id:crate::operations_web::PAGE_ID,factory:crate::operations_web::pages_service}, Service {id:crate::files_web::PAGE_ID,factory:crate::files_web::pages_service}, Service {id:crate::files_web::DOWNLOAD_ID,factory:crate::files_web::download_service}],
     }
 }
 
@@ -228,6 +231,57 @@ file_setting!(
     Some(1440.0),
     "Abandon in-progress exchanges after (minutes)",
     "Mark an unfinished file exchange as abandoned after this time."
+);
+
+// KC5: Bilimbi Connector.Contributions retention policy, unset periods keep history.
+macro_rules! retention_setting {
+    ($name:literal,$default:expr,$nullable:literal,$max:literal,$label:literal,$help:literal) => {
+        inventory::submit! { Contribution::new(DEFINITIONS,concat!("people-connector.retention.",$name),provenance!(),&Setting::Definition(Definition {
+            value_type:ValueType::Integer,scopes:&[ScopeKind::Company],default:||serde_json::json!($default),
+            nullable:$nullable,encrypted:false,minimum:Some(1.0),maximum:Some($max as f64),validator:None,
+            editor:Some(bilibi_settings::Editor{group:"People integrations",label:$label,help:$help,capability:Some(MANAGE),reveal_duration_ms:5000}),
+        })) }
+    };
+}
+retention_setting!(
+    "sync_days",
+    Value::Null,
+    true,
+    3650,
+    "Sync runs (days)",
+    "Keep sync history for this many days; blank keeps records."
+);
+retention_setting!(
+    "webhook_days",
+    Value::Null,
+    true,
+    3650,
+    "Webhook deliveries (days)",
+    "Keep delivery history for this many days; blank keeps records."
+);
+retention_setting!(
+    "file_days",
+    Value::Null,
+    true,
+    3650,
+    "File receipts (days)",
+    "Keep expired file receipts for this many days; blank keeps records."
+);
+retention_setting!(
+    "batch_size",
+    100,
+    false,
+    1000,
+    "Batch size per record type",
+    "Most records of each type removed by one purge."
+);
+retention_setting!(
+    "retry_minutes",
+    60,
+    false,
+    1440,
+    "Retry delay (minutes)",
+    "Wait this many minutes before retrying a failed removal."
 );
 
 // KC6: Bilimbi's backup policy; changes affect newly created receipts/previews.
