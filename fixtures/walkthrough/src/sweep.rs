@@ -32,8 +32,13 @@ async fn retained(client: &tokio_postgres::Client) -> Result<Value> {
     for table in [
         "connections",
         "sync_checkpoints",
+        "sync_runs",
         "workforce_records",
+        "reconciliation_issues",
+        "webhook_nonces",
+        "webhook_deliveries",
         "file_exchanges",
+        "retention_attempts",
         "backups",
     ] {
         let sql = format!("SELECT coalesce(jsonb_agg(to_jsonb(r)-'webhook_secret' ORDER BY id), '[]'::jsonb) FROM people_connector_{table} r WHERE tenant_id=1");
@@ -75,6 +80,10 @@ fn curl(
         .args([
             "--silent",
             "--show-error",
+            "--connect-timeout",
+            "3",
+            "--max-time",
+            "10",
             "--output",
             "/dev/null",
             "--write-out",
@@ -269,6 +278,13 @@ pub(super) async fn run(url: &str, action: &str) -> Result<()> {
     std::fs::create_dir_all(&root)?;
     let storage = Path::new(&root).join("artifacts");
     std::fs::create_dir_all(&storage)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for directory in [Path::new(&root), storage.as_path()] {
+            std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700))?;
+        }
+    }
     // Disposable installation owner, as in the existing file/backup walkthroughs.
     client.execute("INSERT INTO platform_operator(singleton,tenant_id) VALUES(true,1) ON CONFLICT DO NOTHING", &[]).await?;
     let settings = services.get::<bilibi_base::settings::Settings>("base/settings.store")?;
