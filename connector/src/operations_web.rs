@@ -280,7 +280,7 @@ impl State {
     }
     fn render(&self) -> Result<String> {
         if self.company.is_none() {
-            selector
+            field
                 .options
                 .insert(0, bilibi_ui::Choice::new("Select a company", ""));
         }
