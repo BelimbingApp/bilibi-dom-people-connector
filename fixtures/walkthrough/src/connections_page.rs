@@ -158,6 +158,10 @@ pub async fn connections_page_walkthrough() -> Result<()> {
         grants.set_direct(&admin, 1, key, Some(true)).await?;
     }
     grants.set_direct(&admin, 2, VIEW, Some(true)).await?;
+    // The viewer has no company affiliation in the Platform fixture.
+    grants
+        .set_direct(&admin, 2, "admin.company.tenant-wide.manage", Some(true))
+        .await?;
     let manager = auth
         .authenticate(&**client, 1, 1, "connections-proof".into())
         .await?;
@@ -372,7 +376,8 @@ pub async fn connections_page_walkthrough() -> Result<()> {
         .await?
         .html;
     require(
-        !viewer_html.contains("people-connections-provider-form")
+        viewer_html.contains("people/native · 1001")
+            && !viewer_html.contains("people-connections-provider-form")
             && !viewer_html.contains("people-connections-remove\""),
         "viewer sees facts with write controls withheld",
     )?;
