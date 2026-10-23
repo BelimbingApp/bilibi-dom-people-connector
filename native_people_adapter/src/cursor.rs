@@ -33,8 +33,7 @@ impl Cursor {
         if encoded.len() > 8192 {
             return Err(ReadRefusal::InvalidCursor);
         }
-        let cursor: Self =
-            serde_json::from_str(encoded).map_err(|_| ReadRefusal::InvalidCursor)?;
+        let cursor: Self = serde_json::from_str(encoded).map_err(|_| ReadRefusal::InvalidCursor)?;
         if cursor.version != 1
             || cursor.tenant != a.scope.tenant()
             || cursor.platform != a.platform_company_id
@@ -48,7 +47,9 @@ impl Cursor {
         Ok(cursor)
     }
     pub fn as_of(&self) -> Result<Timestamp, ReadRefusal> {
-        self.watermark.parse().map_err(|_| ReadRefusal::InvalidCursor)
+        self.watermark
+            .parse()
+            .map_err(|_| ReadRefusal::InvalidCursor)
     }
     pub fn continued(mut self, inner: Option<String>) -> Result<String, ReadRefusal> {
         self.inner = inner;

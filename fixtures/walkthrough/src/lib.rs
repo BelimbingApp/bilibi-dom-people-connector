@@ -367,3 +367,8 @@ pub use connections_page::{connections_page_walkthrough, ConnectionsDirectory};
 mod operations;
 pub use operations::operations_browser_setup;
 pub use operations::operations_walkthrough;
+// KA1: native read adapter, independently runnable with and without People.
+mod native_adapter;
+pub async fn native_adapter(url: &str, live: bool) -> Result<()> {
+    native_adapter::run(url, live).await
+}

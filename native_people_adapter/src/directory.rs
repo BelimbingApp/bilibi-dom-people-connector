@@ -50,7 +50,13 @@ impl Identity {
         }
         Ok(())
     }
-    fn record(&self, kind: RecordKind, name: String, code: String, at: Timestamp) -> WorkforceRecord {
+    fn record(
+        &self,
+        kind: RecordKind,
+        name: String,
+        code: String,
+        at: Timestamp,
+    ) -> WorkforceRecord {
         WorkforceRecord {
             kind,
             source_id: self.reference.source_id.clone(),
@@ -172,7 +178,11 @@ async fn call<T: DeserializeOwned>(
     serde_json::from_value(answer).map_err(|_| ReadRefusal::UnexpectedResult.into())
 }
 
-fn company_reference(reference: &Reference, company: &Company, a: &PortAuthorization<'_>) -> Result<()> {
+fn company_reference(
+    reference: &Reference,
+    company: &Company,
+    a: &PortAuthorization<'_>,
+) -> Result<()> {
     if !reference.matches(a, "company")
         || reference.stable_id != company.identity.reference.stable_id
     {
@@ -180,7 +190,11 @@ fn company_reference(reference: &Reference, company: &Company, a: &PortAuthoriza
     }
     Ok(())
 }
-fn optional_reference(reference: &Option<Reference>, a: &PortAuthorization<'_>, kind: &str) -> Result<()> {
+fn optional_reference(
+    reference: &Option<Reference>,
+    a: &PortAuthorization<'_>,
+    kind: &str,
+) -> Result<()> {
     if reference.as_ref().is_some_and(|r| !r.matches(a, kind)) {
         return Err(ReadRefusal::MappingMismatch.into());
     }
@@ -206,17 +220,27 @@ pub(crate) async fn read(
 ) -> Result<Page> {
     let at = cursor.as_of()?;
     let company: CompanyAnswer = call(
-        context, a, json!({"read":"company", "company_id":a.platform_company_id}), false,
-    ).await?;
+        context,
+        a,
+        json!({"read":"company", "company_id":a.platform_company_id}),
+        false,
+    )
+    .await?;
     let company = company.value;
     company.identity.check(a, "company")?;
     if a.capability == ORGANIZATION_DIRECTORY {
         let size = request.limit.min(100);
         let day = at.to_string()[..10].to_owned();
-        let page: PositionPage = call(context, a, json!({
-            "read":"positions", "company_id":a.platform_company_id,
-            "as_of":day, "page_size":size, "cursor":cursor.inner,
-        }), request.cursor.is_some()).await?;
+        let page: PositionPage = call(
+            context,
+            a,
+            json!({
+                "read":"positions", "company_id":a.platform_company_id,
+                "as_of":day, "page_size":size, "cursor":cursor.inner,
+            }),
+            request.cursor.is_some(),
+        )
+        .await?;
         page_shape(page.positions.len(), size, page.snapshot, &page.watermark)?;
         let mut entries = Vec::with_capacity(page.positions.len());
         for p in page.positions {
@@ -224,7 +248,10 @@ pub(crate) async fn read(
             company_reference(&p.company_reference, &company, a)?;
             optional_reference(&p.parent_reference, a, "position")?;
             let mut record = p.identity.record(
-                RecordKind::Position, p.title.unwrap_or_else(|| p.code.clone()), p.code, at,
+                RecordKind::Position,
+                p.title.unwrap_or_else(|| p.code.clone()),
+                p.code,
+                at,
             );
             record.parent_stable_id = p.parent_reference.map(|r| r.stable_id);
             record.version = p.version;
@@ -245,31 +272,51 @@ pub(crate) async fn read(
             }
             entries.push(encode(record)?);
         }
-        let next = page.next_cursor.map(|inner| cursor.continued(Some(inner))).transpose()?;
+        let next = page
+            .next_cursor
+            .map(|inner| cursor.continued(Some(inner)))
+            .transpose()?;
         return Ok(current(entries, at, next));
     }
     // A company-only first page keeps every page within even limit=1, and
     // leaves the Workforce scan's page size unchanged throughout continuation.
     if request.cursor.is_none() {
-        let record = company.identity.record(RecordKind::Company, company.name, company.code, at);
-        return Ok(current(vec![encode(record)?], at, Some(cursor.continued(None)?)));
+        let record = company
+            .identity
+            .record(RecordKind::Company, company.name, company.code, at);
+        return Ok(current(
+            vec![encode(record)?],
+            at,
+            Some(cursor.continued(None)?),
+        ));
     }
     let size = request.limit.min(1000);
-    let page: EmployeePage = call(context, a, json!({
-        "read":"employees", "company_id":a.platform_company_id,
-        "page_size":size, "cursor":cursor.inner,
-    }), cursor.inner.is_some()).await?;
+    let page: EmployeePage = call(
+        context,
+        a,
+        json!({
+            "read":"employees", "company_id":a.platform_company_id,
+            "page_size":size, "cursor":cursor.inner,
+        }),
+        cursor.inner.is_some(),
+    )
+    .await?;
     page_shape(page.employees.len(), size, page.snapshot, &page.watermark)?;
     let mut entries = Vec::with_capacity(page.employees.len());
     for e in page.employees {
         e.identity.check(a, "employee")?;
         company_reference(&e.company_reference, &company, a)?;
         optional_reference(&e.supervisor_reference, a, "employee")?;
-        let mut record = e.identity.record(RecordKind::Employee, e.display_name, e.employee_number, at);
+        let mut record =
+            e.identity
+                .record(RecordKind::Employee, e.display_name, e.employee_number, at);
         record.email = e.email;
         record.supervisor_stable_id = e.supervisor_reference.map(|r| r.stable_id);
         entries.push(encode(record)?);
     }
-    let next = page.next_cursor.map(|inner| cursor.continued(Some(inner))).transpose()?;
+    let next = page
+        .next_cursor
+        .map(|inner| cursor.continued(Some(inner)))
+        .transpose()?;
     Ok(current(entries, at, next))
 }

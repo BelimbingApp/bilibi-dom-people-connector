@@ -232,11 +232,15 @@ impl Providers {
     /// The installed registry: `people.native` ("People (this installation)",
     /// contract `1.0.0`) declaring company, employee and organisation directory reads.
     pub fn installed() -> Registry {
-        let capabilities = [COMPANY_DIRECTORY, EMPLOYEE_DIRECTORY, ORGANIZATION_DIRECTORY]
-            .into_iter()
-            .map(|key| Capability::new(key, Direction::Read))
-            .collect::<Result<Vec<_>, _>>()
-            .expect("known capability keys");
+        let capabilities = [
+            COMPANY_DIRECTORY,
+            EMPLOYEE_DIRECTORY,
+            ORGANIZATION_DIRECTORY,
+        ]
+        .into_iter()
+        .map(|key| Capability::new(key, Direction::Read))
+        .collect::<Result<Vec<_>, _>>()
+        .expect("known capability keys");
         let native = Provider::new(
             NATIVE_PROVIDER_ID,
             "People (this installation)",
