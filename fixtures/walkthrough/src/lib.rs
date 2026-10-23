@@ -372,3 +372,9 @@ mod native_adapter;
 pub async fn native_adapter(url: &str, live: bool) -> Result<()> {
     native_adapter::run(url, live).await
 }
+
+// KV1: the installed connector and People catalogs, HTTP intake, and remount preservation.
+mod sweep;
+pub async fn sweep(url: &str, action: &str) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    sweep::run(url, action).await
+}

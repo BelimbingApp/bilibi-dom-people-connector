@@ -302,7 +302,7 @@ impl State {
                 ..Default::default()
             })?
         };
-        let content = if let Some(policy) = &self.policy {
+        let mut content = if let Some(policy) = &self.policy {
             let mut findings = Html::EMPTY;
             let mut facts = Html::EMPTY;
             if let Some(report) = &self.report {
@@ -465,6 +465,14 @@ impl State {
         } else {
             render(EmptyState::missing("Connection operations unavailable","Select an accessible company. A connection manager must have permission to manage it.").id("people-operations-unavailable"))?
         };
+        if !self.pages.connector.people_available() {
+            let mut notice = render(EmptyState::missing(
+                "People is absent.",
+                "Mount People to review the workforce connection. Health checks and record cleanup remain available.",
+            ).id("people-operations-people-absent"))?;
+            notice.push(&content);
+            content = notice;
+        }
         let dialog = if self.pending_purge {
             render(ConfirmDialog{id:"people-retention-confirm",consequence:&format!("Eligible connector records for {} will be deleted.",self.companies.iter().find(|c|Some(c.id.get())==self.company).map(|c|c.name.as_str()).unwrap_or("this company")),detail:"This cannot be undone. Each record is audited. Checkpoints, directory projections, reconciliation issues and audit history remain.",confirm:"Purge",working:"Purging…",confirm_event:"purge",cancel_event:"cancel_purge"})?
         } else {
