@@ -362,3 +362,8 @@ pub use webhook_proof::run as run_webhooks;
 // KC2: connections page proof uses the real page service and a disposable directory.
 mod connections_page;
 pub use connections_page::{connections_page_walkthrough, ConnectionsDirectory};
+
+// KC5 doctor and retention running-system proof.
+mod operations;
+pub use operations::operations_browser_setup;
+pub use operations::operations_walkthrough;

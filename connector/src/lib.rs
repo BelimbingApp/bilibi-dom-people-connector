@@ -34,6 +34,11 @@
 //! last run, issues and policy. Only `synchronise` invokes adapters.
 //!
 //! See `README.md`.
+mod doctor;
+mod operations_web;
+mod retention;
+pub use doctor::{DoctorReport, Finding, FindingState};
+pub use retention::{PurgeResult, RetentionPolicy, RetentionRecord, RETENTION_FIELDS};
 mod backup;
 mod backup_store;
 mod backups_web;
@@ -177,6 +182,14 @@ pub enum ConnectorError {
     WebhookSecretMissing,
     #[error("The checkpoint changed. Review it and try again.")]
     CheckpointMoved,
+    #[error("Audit is unavailable. Restore audit storage and retry.")]
+    AuditUnavailable,
+    #[error("Enter a whole number within the stated range, or clear a retention period to keep records.")]
+    InvalidRetentionPolicy,
+    #[error("Receipt kept because file cleanup failed. Check private storage settings and retry.")]
+    ArtifactCleanupFailed,
+    #[error("The record is no longer eligible. Run another batch if needed.")]
+    NoLongerEligible,
     /// A database or capture failure; never a refusal.
     #[error(transparent)]
     Failed(Error),
