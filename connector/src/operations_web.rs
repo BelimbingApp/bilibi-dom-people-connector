@@ -279,10 +279,19 @@ impl State {
         )
     }
     fn render(&self) -> Result<String> {
+        let mut field = Field::named("company_id")
+            .id("people-operations-company")
+            .label("Company")
+            .kind(InputKind::Select)
+            .value(self.company.map(|id| id.to_string()).unwrap_or_default())
+            .options(
+                self.companies
+                    .iter()
+                    .map(|c| Choice::new(c.name.clone(), c.id.get().to_string()))
+                    .collect(),
+            );
         if self.company.is_none() {
-            field
-                .options
-                .insert(0, bilibi_ui::Choice::new("Select a company", ""));
+            field.options.insert(0, Choice::new("Select a company", ""));
         }
         let selector = if self.companies.is_empty() {
             Html::EMPTY
@@ -291,19 +300,7 @@ impl State {
                 id: "people-operations-company-form",
                 event: "select_company",
                 change: true,
-                body: render(
-                    Field::named("company_id")
-                        .id("people-operations-company")
-                        .label("Company")
-                        .kind(InputKind::Select)
-                        .value(self.company.map(|id| id.to_string()).unwrap_or_default())
-                        .options(
-                            self.companies
-                                .iter()
-                                .map(|c| Choice::new(c.name.clone(), c.id.get().to_string()))
-                                .collect(),
-                        ),
-                )?,
+                body: render(field)?,
                 ..Default::default()
             })?
         };
