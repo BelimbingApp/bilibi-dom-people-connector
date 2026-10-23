@@ -288,9 +288,10 @@ impl State {
     }
     fn query(&self) -> HashMap<String, String> {
         let mut query = self.list.to_params();
-        if let Some(company) = self.company {
-            query.insert("company_id".into(), company.to_string());
-        }
+        query.insert(
+            "company_id".into(),
+            self.company.map(|id| id.to_string()).unwrap_or_default(),
+        );
         query
     }
     fn render(&self) -> Result<String> {
@@ -304,6 +305,11 @@ impl State {
             .iter()
             .map(|c| Choice::new(c.name.clone(), c.id.get().to_string()))
             .collect();
+        if self.company.is_none() {
+            selector
+                .options
+                .insert(0, bilibi_ui::Choice::new("Select a company", ""));
+        }
         let selector = if self.companies.is_empty() {
             Html::EMPTY
         } else {

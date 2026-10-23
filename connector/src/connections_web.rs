@@ -79,6 +79,7 @@ struct State {
     pages: Pages,
     companies: Vec<Company>,
     company: Option<i64>,
+    choose_default_company: bool,
     can_manage: bool,
     summary: Option<SyncSummary>,
     webhook: Option<WebhookSummary>,
@@ -146,6 +147,7 @@ impl State {
             pages,
             companies: vec![],
             company: None,
+            choose_default_company: false,
             can_manage: false,
             summary: None,
             webhook: None,
@@ -174,6 +176,7 @@ impl State {
         self.list = list(query, "", COMPANY_COLUMNS)?;
         self.issues_list = list(query, "issues_", ISSUE_COLUMNS)?;
         self.company = params::positive_id(query.get("company_id").map(String::as_str));
+        self.choose_default_company = !query.contains_key("company_id");
         self.pending_remove = None;
         self.form_error = None;
         self.sync_keys.clear();
@@ -187,10 +190,14 @@ impl State {
             .await?;
         let companies: Vec<_> = companies.into_iter().filter(|c| !c.archived).collect();
         let previous = self.company;
-        self.company = self
-            .company
-            .filter(|id| companies.iter().any(|c| c.id.get() == *id))
-            .or_else(|| companies.first().map(|c| c.id.get()));
+        // Default only on an address with no selection, never after reach changes.
+        self.company = if self.choose_default_company {
+            companies.first().map(|c| c.id.get())
+        } else {
+            self.company
+                .filter(|id| companies.iter().any(|c| c.id.get() == *id))
+        };
+        self.choose_default_company = false;
         if previous != self.company {
             self.pending_remove = None;
             self.sync_keys.clear();
@@ -307,6 +314,7 @@ impl State {
             return Ok(());
         }
         let Some(company) = self.company else {
+            self.flash = Some(("Select a company you may manage.".into(), StatusKind::Error));
             return Ok(());
         };
         // Presentation flags are never authority: every write-shaped event,
@@ -508,9 +516,10 @@ impl State {
     fn query(&self) -> HashMap<String, String> {
         let mut query = self.list.to_params();
         query.extend(self.issues_list.to_params());
-        if let Some(company) = self.company {
-            query.insert("company_id".into(), company.to_string());
-        }
+        query.insert(
+            "company_id".into(),
+            self.company.map(|id| id.to_string()).unwrap_or_default(),
+        );
         query
     }
 }
@@ -586,6 +595,11 @@ impl State {
             .iter()
             .map(|c| bilibi_ui::Choice::new(&c.record.name, c.record.id.get().to_string()))
             .collect();
+        if self.company.is_none() {
+            selector
+                .options
+                .insert(0, bilibi_ui::Choice::new("Select a company", ""));
+        }
         let selector = if self.companies.is_empty() {
             Html::EMPTY
         } else {
@@ -608,6 +622,12 @@ impl State {
             )?);
         } else {
             content.push(&self.companies_table()?);
+        }
+        if self.company.is_none() && !self.companies.is_empty() {
+            content.push(&render(EmptyState::missing(
+                "No company is selected.",
+                "Choose a company you can view to see its connection state.",
+            ))?);
         }
         if let Some(selected) = self.selected() {
             match &selected.status {
