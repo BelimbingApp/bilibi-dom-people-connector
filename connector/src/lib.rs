@@ -23,7 +23,7 @@
 //! the scope's signed-in actor to hold `people-connector.connections.manage`
 //! with Core Company reach to the target (the actor's own company, or a
 //! same-tenant sibling with tenant-wide company reach), authorized inside the
-//! facade with `organisation::authorize_target` and performed through
+//! facade with `bilibi_company::authorize_target` and performed through
 //! `MutationBoundary` under the company's writable lock. A provider credential
 //! is the encrypted company-scoped Base Setting [`CREDENTIAL_KEY`]: the facade
 //! stores or clears it and reports only whether one exists.
@@ -78,7 +78,7 @@ pub use contracts::{
 pub use contributions::{CAPABILITIES, CONNECTIONS_PATH, CREDENTIAL_KEY, MANAGE, VIEW};
 pub use people::{Read, Reference, WorkforceCompany, DIRECTORY_PORT, NATIVE_SOURCE_ID};
 
-use bilibi_company::{organisation, WriteError};
+use bilibi_company::WriteError;
 use bilibi_database::{Db, Error, MutationBoundary, MutationTransaction};
 use bilibi_party_ids::OrganisationId;
 use bilibi_ports::Ports;
@@ -660,7 +660,7 @@ async fn authorize(
     scope: &Scope,
     platform_company_id: i64,
 ) -> Result<i64> {
-    organisation::authorize_target(client, scope, platform_company_id, MANAGE)
+    bilibi_company::authorize_target(client, scope, platform_company_id, MANAGE)
         .await
         .map_err(ConnectorError::from)
 }
@@ -672,7 +672,7 @@ async fn require_writable(
     scope: &Scope,
     company_id: i64,
 ) -> Result<()> {
-    organisation::require_writable(tx.sql(), scope, company_id, true)
+    bilibi_company::require_writable(tx.sql(), scope, company_id, true)
         .await
         .map_err(|error| match error {
             WriteError::NotFound => ConnectorError::NotFound,

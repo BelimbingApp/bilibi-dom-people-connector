@@ -107,7 +107,7 @@ impl State {
     }
     async fn select(&mut self, scope: &Scope, query: &HashMap<String, String>) -> Result<()> {
         let client = self.pages.db.get().await.map_err(Error::from)?;
-        self.companies = bilibi_company::organisation::Directory
+        self.companies = bilibi_company::Directory
             .selectable(&**client, scope, MANAGE)
             .await?;
         self.company = if query.contains_key("company_id") {

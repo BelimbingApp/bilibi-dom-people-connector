@@ -185,7 +185,7 @@ impl State {
     }
     async fn refresh(&mut self, scope: &Scope) -> Result<()> {
         let client = self.pages.db.get().await.map_err(Error::from)?;
-        let companies = bilibi_company::organisation::Directory
+        let companies = bilibi_company::Directory
             .selectable(&**client, scope, VIEW)
             .await?;
         let companies: Vec<_> = companies.into_iter().filter(|c| !c.archived).collect();

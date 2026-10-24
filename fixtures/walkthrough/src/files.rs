@@ -21,7 +21,7 @@ impl PortProvider for FileCompanyPort {
         Box::pin(async move {
             let company = body["company_id"].as_i64().ok_or(Error::Invalid)?;
             bilibi_ports::on_client!(client, |sql| {
-                bilibi_company::organisation::authorize_target(sql, scope, company, VIEW).await
+                bilibi_company::authorize_target(sql, scope, company, VIEW).await
             })?;
             Ok(
                 json!({"value":{"reference":{"source_id":"people/native","type":"company","stable_id":company.to_string()},"platform_company_id":company,"workforce_company_id":company+if REMAPPED.load(Ordering::SeqCst){2000}else{1000},"name":"Fixture workforce company","code":"FIXTURE"},"freshness":"current"}),
