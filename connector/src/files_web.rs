@@ -116,9 +116,13 @@ impl State {
         self.companies = bilibi_company::organisation::Directory
             .selectable(&**client, scope, MANAGE)
             .await?;
-        self.company = params::positive_id(query.get("company_id").map(String::as_str))
-            .filter(|id| self.companies.iter().any(|c| c.id.get() == *id))
-            .or_else(|| self.companies.first().map(|c| c.id.get()));
+        // An explicit unavailable company must never select a different write target.
+        self.company = if query.contains_key("company_id") {
+            params::positive_id(query.get("company_id").map(String::as_str))
+                .filter(|id| self.companies.iter().any(|c| c.id.get() == *id))
+        } else {
+            self.companies.first().map(|c| c.id.get())
+        };
         self.private_settings =
             bilibi_authz::decide(&**client, scope, "base.settings.global.manage")
                 .await?
@@ -284,9 +288,10 @@ impl State {
     }
     fn query(&self) -> HashMap<String, String> {
         let mut query = self.list.to_params();
-        if let Some(company) = self.company {
-            query.insert("company_id".into(), company.to_string());
-        }
+        query.insert(
+            "company_id".into(),
+            self.company.map(|id| id.to_string()).unwrap_or_default(),
+        );
         query
     }
     fn render(&self) -> Result<String> {
@@ -300,6 +305,11 @@ impl State {
             .iter()
             .map(|c| Choice::new(c.name.clone(), c.id.get().to_string()))
             .collect();
+        if self.company.is_none() {
+            selector
+                .options
+                .insert(0, bilibi_ui::Choice::new("Select a company", ""));
+        }
         let selector = if self.companies.is_empty() {
             Html::EMPTY
         } else {

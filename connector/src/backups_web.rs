@@ -253,6 +253,13 @@ impl State {
         let values = params::string_values(payload);
         match event {
             "save_policy" => {
+                // Refuse an inline edit queued before the company chooser changed.
+                // This ID fences the draft; the selected company remains the target.
+                if values.get("id").and_then(|id| id.parse::<i64>().ok()) != Some(company) {
+                    self.flash =
+                        Some(("Select a company you may manage.".into(), StatusKind::Error));
+                    return Ok(());
+                }
                 let field = values.get("field").map(String::as_str).unwrap_or("");
                 let value = values.get("value").and_then(|v| v.parse::<i64>().ok());
                 let update = match (field, value) {
@@ -410,6 +417,11 @@ impl State {
             .iter()
             .map(|c| Choice::new(&c.name, c.id.get().to_string()))
             .collect();
+        if self.company.is_none() {
+            field
+                .options
+                .insert(0, bilibi_ui::Choice::new("Select a company", ""));
+        }
         let selector = if self.companies.is_empty() {
             Html::EMPTY
         } else {
@@ -447,6 +459,7 @@ impl State {
                 .hint(hint)
                 .status(self.commits.get(key));
                 field.save_event = "save_policy".into();
+                field.id_value = self.company.unwrap().to_string();
                 facts.push(Fact {
                     title: label,
                     value: render(InlineEdit { field })?,
@@ -675,9 +688,10 @@ impl State {
     }
     fn query(&self) -> HashMap<String, String> {
         let mut q = self.list.to_params();
-        if let Some(c) = self.company {
-            q.insert("company_id".into(), c.to_string());
-        }
+        q.insert(
+            "company_id".into(),
+            self.company.map(|id| id.to_string()).unwrap_or_default(),
+        );
         q
     }
 }

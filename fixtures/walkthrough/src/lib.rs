@@ -378,3 +378,9 @@ mod sweep;
 pub async fn sweep(url: &str, action: &str) -> std::result::Result<(), Box<dyn std::error::Error>> {
     sweep::run(url, action).await
 }
+
+// KU1: live page company selection, stale inline drafts and revoked grants.
+mod click_through;
+pub async fn click_through(url: &str) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    click_through::run(url).await
+}

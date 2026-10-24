@@ -60,6 +60,16 @@ Sign in as `manager@example.test` with the disposable fixture password `bilibi-d
 
 Keep screenshots and notes outside the repositories. Never capture a signing secret, installation key, session or restore token.
 
+## Check company selections and delayed edits
+
+After the mounted setup, run the click-through proof against the same disposable database:
+
+```sh
+cargo run -p bilibi-people-connector-walkthrough --example click-through
+```
+
+It opens the four installed live page services with unavailable company selections and checks that reload keeps them unselected. It also checks that a backup policy edit started at one company cannot save after choosing another, and that each page refuses a grant revoked after mount. The proof restores its temporary backup policy change and management grant.
+
 ## Remove and remount People
 
 Stop only the app process you started. Move the People clone out of `apps/domains` into your private scratch directory, then rebuild the same app and sweep example:
