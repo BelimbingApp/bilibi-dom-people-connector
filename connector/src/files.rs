@@ -499,7 +499,7 @@ impl Owner for FileOwner {
         Box::pin(async move {
             // Core's object-safe directory applies the same target authorization
             // on Base's locked proof connection.
-            let target = bilibi_company::organisation::Directory
+            let target = bilibi_company::Directory
                 .target(proof, scope, company, crate::MANAGE)
                 .await?;
             if target.archived {
