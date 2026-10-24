@@ -6,7 +6,6 @@ use crate::{
     Connector, ConnectorError, Result, Status, NATIVE_PROVIDER_ID,
 };
 use bilibi_audit::{record_action, Attribution};
-use bilibi_company::organisation;
 use bilibi_database::{Context, Error, Principal};
 use bilibi_integration::webhooks::{Delivery, Refused, Verified, WebhookFuture, WebhookHandler};
 use bilibi_tenancy::Scope;
@@ -212,7 +211,7 @@ impl WebhookHandler for Connector {
             let fields = Fields::parse(delivery)?;
             let client = self.db.get().await.map_err(|_| Refused)?;
             require_tenant(&**client, fields.tenant, false).await?;
-            organisation::require_writable_in(&**client, fields.tenant, fields.company, false)
+            bilibi_company::require_writable_in(&**client, fields.tenant, fields.company, false)
                 .await
                 .map_err(|_| Refused)?;
             let connection = connections::find(&**client, fields.tenant, fields.company, false)
@@ -260,7 +259,7 @@ impl WebhookHandler for Connector {
                 .await
                 .map_err(|_| Refused)?;
             require_tenant(tx.sql(), fields.tenant, true).await?;
-            organisation::require_writable_in(tx.sql(), fields.tenant, fields.company, true)
+            bilibi_company::require_writable_in(tx.sql(), fields.tenant, fields.company, true)
                 .await
                 .map_err(|_| Refused)?;
             let connection = connections::find(tx.sql(), fields.tenant, fields.company, true)

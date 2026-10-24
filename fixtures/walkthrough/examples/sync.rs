@@ -26,7 +26,7 @@ impl PortProvider for CompanyPort {
         Box::pin(async move {
             let company = body["company_id"].as_i64().ok_or(Error::Invalid)?;
             // A fixture provider still proves Core company visibility on the caller's client.
-            bilibi_ports::on_client!(client, |c| bilibi_company::organisation::authorize_target(
+            bilibi_ports::on_client!(client, |c| bilibi_company::authorize_target(
                 c, scope, company, VIEW
             )
             .await)?;
