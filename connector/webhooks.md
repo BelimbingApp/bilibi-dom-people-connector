@@ -63,7 +63,7 @@ Bilibi's webhook callback has no login scope. `Settings::resolve_many/get` requi
 
 `Settings::seal_owned/open_owned` encrypts the signing secret with `BILIBI_SETTINGS_KEY`, bound to the module's webhook owner, tenant and connection ID. Storing or verifying needs that installation key. Disabling or clearing ciphertext needs no key. Audit redacts `webhook_secret`, including its ciphertext; receipts and summaries never contain it.
 
-The handler resolves policy by tenant and platform company from its own connection. It checks tenant liveness and uses Core Company's `organisation::require_writable_in` for the company lock. It never assumes the two company identity axes are equal. Only actor-authorized configuration and synchronisation read current Workforce identity; changing that stored mapping clears intake authority.
+The handler resolves policy by tenant and platform company from its own connection. It checks tenant liveness and uses Core Company's `bilibi_company::require_writable_in` for the company lock. It never assumes the two company identity axes are equal. Only actor-authorized configuration and synchronisation read current Workforce identity; changing that stored mapping clears intake authority.
 
 ## Walkthrough
 

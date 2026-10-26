@@ -116,7 +116,7 @@ Resolve `Connector` from the registry as
 
 Every write needs the scope's signed-in actor to hold
 `people-connector.connections.manage` with Core Company reach to the target
-(`organisation::authorize_target`: the actor's own company, or a same-tenant
+(`bilibi_company::authorize_target`: the actor's own company, or a same-tenant
 sibling only with tenant-wide company reach); a system principal cannot
 reach the facade. Each write holds the company's writable lock (an archived
 company is `CompanyArchived`) and the connection row `FOR UPDATE`.
