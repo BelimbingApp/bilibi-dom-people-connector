@@ -905,9 +905,12 @@ impl Owner for BackupOwner {
         reference: Option<&'a Reference>,
     ) -> ProofFuture<'a, ()> {
         Box::pin(async move {
-            let target = bilibi_company::Directory
-                .target(proof, scope, company, crate::MANAGE)
+            bilibi_company::authorize_work_target(proof, scope, company.get(), crate::MANAGE)
                 .await?;
+            let target = bilibi_company::Directory
+                .lookup(proof, scope, company)
+                .await?
+                .ok_or(Error::NotFound)?;
             if target.archived {
                 return Err(Error::Forbidden);
             }
