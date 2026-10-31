@@ -127,7 +127,7 @@ impl Connector {
 
     async fn webhook_summary_on(
         &self,
-        client: &impl GenericClient,
+        client: &(impl GenericClient + Sync),
         connection: Option<&Connection>,
     ) -> Result<WebhookSummary> {
         let (policy, last_received_at) = match connection {
@@ -148,7 +148,7 @@ impl Connector {
     /// No body parsing, mutations, directory reads or login account lookups.
     async fn verify_native(
         &self,
-        client: &impl GenericClient,
+        client: &(impl GenericClient + Sync),
         connection: &Connection,
         fields: &Fields<'_>,
         body: &[u8],
@@ -315,7 +315,7 @@ impl WebhookHandler for Connector {
 /// deliberately no login Scope, account impersonation or tenant authority
 /// inferred from a header: the HMAC subsequently authenticates every field.
 async fn require_tenant(
-    client: &impl GenericClient,
+    client: &(impl GenericClient + Sync),
     tenant: i64,
     lock: bool,
 ) -> std::result::Result<(), Refused> {

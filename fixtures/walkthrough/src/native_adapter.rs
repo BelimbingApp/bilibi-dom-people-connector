@@ -26,7 +26,7 @@ impl PortProvider for Directory {
     fn call<'a>(&'a self, client: PortClient<'a>, scope: &'a Scope, body: Value) -> PortFuture<'a> {
         Box::pin(async move {
             let id = body["company_id"].as_i64().ok_or(Error::Invalid)?;
-            bilibi_ports::on_client!(client, |c| bilibi_company::authorize_target(
+            bilibi_ports::on_client!(client, |c| bilibi_company::authorize_work_target(
                 c, scope, id, VIEW
             )
             .await)?;

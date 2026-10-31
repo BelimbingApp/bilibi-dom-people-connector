@@ -108,10 +108,16 @@ impl Kind {
     // Identifiers and predicates are selected exclusively from this closed enum.
     fn eligibility(self) -> &'static str {
         match self {
-        Self::Sync => "r.state <> 'running' AND r.finished_at < clock_timestamp()-make_interval(days=>$3::int) AND r.id <> (SELECT x.id FROM people_connector_sync_runs x WHERE x.tenant_id=r.tenant_id AND x.connection_id=r.connection_id ORDER BY x.started_at DESC,x.id DESC LIMIT 1) AND r.id IS DISTINCT FROM (SELECT x.id FROM people_connector_sync_runs x WHERE x.tenant_id=r.tenant_id AND x.connection_id=r.connection_id AND x.state='succeeded' ORDER BY x.started_at DESC,x.id DESC LIMIT 1)",
-        Self::File => "r.state <> 'pending' AND r.inserted_at < clock_timestamp()-make_interval(days=>$3::int) AND (r.expires_at IS NULL OR r.expires_at<=clock_timestamp())",
-        _ => "r.received_at < (clock_timestamp() AT TIME ZONE 'UTC')-make_interval(secs=>greatest($3::int*86400,2*(SELECT c.webhook_max_skew_seconds FROM people_connector_connections c WHERE c.tenant_id=r.tenant_id AND c.id=r.connection_id)))",
-    }
+            Self::Sync => {
+                "r.state <> 'running' AND r.finished_at < clock_timestamp()-make_interval(days=>$3::int) AND r.id <> (SELECT x.id FROM people_connector_sync_runs x WHERE x.tenant_id=r.tenant_id AND x.connection_id=r.connection_id ORDER BY x.started_at DESC,x.id DESC LIMIT 1) AND r.id IS DISTINCT FROM (SELECT x.id FROM people_connector_sync_runs x WHERE x.tenant_id=r.tenant_id AND x.connection_id=r.connection_id AND x.state='succeeded' ORDER BY x.started_at DESC,x.id DESC LIMIT 1)"
+            }
+            Self::File => {
+                "r.state <> 'pending' AND r.inserted_at < clock_timestamp()-make_interval(days=>$3::int) AND (r.expires_at IS NULL OR r.expires_at<=clock_timestamp())"
+            }
+            _ => {
+                "r.received_at < (clock_timestamp() AT TIME ZONE 'UTC')-make_interval(secs=>greatest($3::int*86400,2*(SELECT c.webhook_max_skew_seconds FROM people_connector_connections c WHERE c.tenant_id=r.tenant_id AND c.id=r.connection_id)))"
+            }
+        }
     }
 }
 impl Connector {
@@ -375,7 +381,11 @@ async fn candidates(
     } else {
         "r.connection_id IN (SELECT c.id FROM people_connector_connections c WHERE c.tenant_id=$1 AND c.platform_company_id=$2)"
     };
-    let query=format!("SELECT to_jsonb(r) FROM {table} r WHERE r.tenant_id=$1 AND {owner} AND {} AND ($4::text IS NULL OR r.id::text=$4) AND NOT EXISTS (SELECT 1 FROM people_connector_retention_attempts a WHERE a.tenant_id=$1 AND a.platform_company_id=$2 AND a.kind=$5 AND a.record_id=r.id::text AND a.attempted_at>clock_timestamp()-make_interval(mins=>$6::int)) ORDER BY r.id LIMIT $7 {}",kind.eligibility(),if lock{"FOR UPDATE OF r"}else{""});
+    let query = format!(
+        "SELECT to_jsonb(r) FROM {table} r WHERE r.tenant_id=$1 AND {owner} AND {} AND ($4::text IS NULL OR r.id::text=$4) AND NOT EXISTS (SELECT 1 FROM people_connector_retention_attempts a WHERE a.tenant_id=$1 AND a.platform_company_id=$2 AND a.kind=$5 AND a.record_id=r.id::text AND a.attempted_at>clock_timestamp()-make_interval(mins=>$6::int)) ORDER BY r.id LIMIT $7 {}",
+        kind.eligibility(),
+        if lock { "FOR UPDATE OF r" } else { "" }
+    );
     Ok(client
         .query(
             &query,

@@ -23,7 +23,7 @@
 //! the scope's signed-in actor to hold `people-connector.connections.manage`
 //! with Core Company reach to the target (the actor's own company, or a
 //! same-tenant sibling with tenant-wide company reach), authorized inside the
-//! facade with `bilibi_company::authorize_target` and performed through
+//! facade with `bilibi_company::authorize_work_target` and performed through
 //! `MutationBoundary` under the company's writable lock. A provider credential
 //! is the encrypted company-scoped Base Setting [`CREDENTIAL_KEY`]: the facade
 //! stores or clears it and reports only whether one exists.
@@ -103,7 +103,9 @@ pub type Result<T> = std::result::Result<T, ConnectorError>;
 /// its connections page shows for it.
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectorError {
-    #[error("The backup operation was refused. Check access, connection health and private artifact storage, then preview again.")]
+    #[error(
+        "The backup operation was refused. Check access, connection health and private artifact storage, then preview again."
+    )]
     InvalidBackup,
     #[error("Enter a whole number within the stated range.")]
     InvalidBackupPolicy,
@@ -117,11 +119,17 @@ pub enum ConnectorError {
     PreviewChanged,
     #[error("The preview expired. Preview the backup again.")]
     PreviewExpired,
-    #[error("The backup operation was refused. Check access, connection health and private artifact storage, then preview again.")]
+    #[error(
+        "The backup operation was refused. Check access, connection health and private artifact storage, then preview again."
+    )]
     InvalidConfirmation,
-    #[error("The backup operation was refused. Check access, connection health and private artifact storage, then preview again.")]
+    #[error(
+        "The backup operation was refused. Check access, connection health and private artifact storage, then preview again."
+    )]
     ConfirmationRequired,
-    #[error("The backup operation was refused. Check access, connection health and private artifact storage, then preview again.")]
+    #[error(
+        "The backup operation was refused. Check access, connection health and private artifact storage, then preview again."
+    )]
     AlreadyRestored,
     #[error("Restore this backup before requesting recovery.")]
     RestoreRequired,
@@ -184,7 +192,9 @@ pub enum ConnectorError {
     CheckpointMoved,
     #[error("Audit is unavailable. Restore audit storage and retry.")]
     AuditUnavailable,
-    #[error("Enter a whole number within the stated range, or clear a retention period to keep records.")]
+    #[error(
+        "Enter a whole number within the stated range, or clear a retention period to keep records."
+    )]
     InvalidRetentionPolicy,
     #[error("Receipt kept because file cleanup failed. Check private storage settings and retry.")]
     ArtifactCleanupFailed,
@@ -660,7 +670,7 @@ async fn authorize(
     scope: &Scope,
     platform_company_id: i64,
 ) -> Result<i64> {
-    bilibi_company::authorize_target(client, scope, platform_company_id, MANAGE)
+    bilibi_company::authorize_work_target(client, scope, platform_company_id, MANAGE)
         .await
         .map_err(ConnectorError::from)
 }

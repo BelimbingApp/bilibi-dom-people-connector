@@ -116,8 +116,7 @@ Resolve `Connector` from the registry as
 
 Every write needs the scope's signed-in actor to hold
 `people-connector.connections.manage` with Core Company reach to the target
-(`bilibi_company::authorize_target`: the actor's own company, or a same-tenant
-sibling only with tenant-wide company reach); a system principal cannot
+(`bilibi_company::authorize_work_target`: an explicit desk in that same-tenant company); a system principal cannot
 reach the facade. Each write holds the company's writable lock (an archived
 company is `CompanyArchived`) and the connection row `FOR UPDATE`.
 `ConnectorError`'s `Display` is the sentence Bilimbi's connections page
@@ -284,7 +283,7 @@ The receipt table is `people_connector_backups`, added by migration `people-conn
 
 Open **Administration › System › Integrations › People connections** to choose a company, connect its provider and review synchronisation. The companies FlexTable shows connection state, provider, both company identities and whether a credential is stored. Select a company to change its connection. Both tables support column settings, sorting, compact rows and paging. Company rows start at 10 per page; the selected company stays selected while paging.
 
-The picker uses Core Company’s unarchived company directory; that projection does not currently expose an active-status filter. Viewing requires `people-connector.connections.view`. Provider choice, credentials, enable/disable, removal, synchronisation, issue resolution and policy changes require `people-connector.connections.manage` with reach to the selected company. Every write-shaped event checks access again, including opening a removal confirmation. The facade repeats its own checks under the company lock. Read-only viewers see the connection facts and review information with the write controls withheld.
+The picker lists the person’s explicit, unarchived workplaces; that projection does not currently expose an active-status filter. Viewing requires `people-connector.connections.view`. Provider choice, credentials, enable/disable, removal, synchronisation, issue resolution and policy changes require `people-connector.connections.manage` with reach to the selected company. Every write-shaped event checks access again, including opening a removal confirmation. The facade repeats its own checks under the company lock. Read-only viewers see the connection facts and review information with the write controls withheld.
 
 Choose a provider, then enable the connection. A provider that requires a credential shows a `SecretInput`; its keep-current mask never contains the stored value. An empty credential clears it. The native provider needs no credential. Removing a connection requires a `ConfirmDialog` whose company selection stays on the server; Cancel and changing company discard that selection.
 
@@ -295,3 +294,5 @@ Inbound notifications show intake state, signing-secret presence and the last di
 Without a mounted People directory port, the page explains that People is absent and withholds connection controls. Without a provider adapter, sync buttons are disabled with an explanation. A changed workforce mapping offers provider selection again so the manager can record the current identity.
 
 For the disposable page proof, mount the Connector without People, then run `cargo run -p bilibi-people-connector-walkthrough --example connections`. This example contributes its own company port with deliberately different company axes and a scripted directory. It drives the actual page service against PostgreSQL, including sync replay, malformed records, secret masking, read-only viewing and a grant revoked while a removal confirmation is open. Run `--example connections-server` with the same `DATABASE_URL`, `APP_ORIGIN` and `BIND_ADDR` to use the fixture in a browser. These contributions are confined to the examples; the product catalog has no fixture providers.
+
+The connection screens keep their explicit company choosers and declare tenant-wide page scope. Their top bar says **All workplaces**; switching the session desk does not change the company selected on those screens. Each operational read and write still proves the selected company and its existing capability.

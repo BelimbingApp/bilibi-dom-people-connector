@@ -35,7 +35,7 @@ impl PortProvider for CompanyPort {
         Box::pin(async move {
             PORT_CALLS.fetch_add(1, Ordering::SeqCst);
             let company = body["company_id"].as_i64().ok_or(Error::Invalid)?;
-            bilibi_ports::on_client!(client, |c| bilibi_company::authorize_target(
+            bilibi_ports::on_client!(client, |c| bilibi_company::authorize_work_target(
                 c, scope, company, VIEW
             )
             .await)?;

@@ -289,7 +289,7 @@ impl Backup<'_> {
         require_mapping(&c, &current)?;
         Ok(c)
     }
-    async fn idle(&self, client: &impl GenericClient, c: &Connection) -> Result<()> {
+    async fn idle(&self, client: &(impl GenericClient + Sync), c: &Connection) -> Result<()> {
         if client.query_opt("SELECT 1 FROM people_connector_sync_runs WHERE tenant_id=$1 AND connection_id=$2 AND state='running' LIMIT 1",&[&c.tenant_id,&c.id]).await.map_err(Error::from)?.is_some(){return Err(ConnectorError::SyncInProgress);}
         Ok(())
     }
@@ -905,9 +905,12 @@ impl Owner for BackupOwner {
         reference: Option<&'a Reference>,
     ) -> ProofFuture<'a, ()> {
         Box::pin(async move {
-            let target = bilibi_company::Directory
-                .target(proof, scope, company, crate::MANAGE)
+            bilibi_company::authorize_work_target(proof, scope, company.get(), crate::MANAGE)
                 .await?;
+            let target = bilibi_company::Directory
+                .lookup(proof, scope, company)
+                .await?
+                .ok_or(Error::NotFound)?;
             if target.archived {
                 return Err(Error::Forbidden);
             }

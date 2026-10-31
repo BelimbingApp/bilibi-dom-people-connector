@@ -39,7 +39,7 @@ const WRITES: &[&str] = &[
     "save_policy",
     "save_webhook",
 ];
-inventory::submit! { Contribution::new(ROUTES, "people_connector/connector.connections", Provenance { module: crate::MODULE, source: file!(), line: line!() }, &Route { method: Method::Get, path: crate::CONNECTIONS_PATH, service: PAGE_ID, operation: "connections", access: Access::Capability(VIEW), framed: true }) }
+inventory::submit! { Contribution::new(ROUTES, "people_connector/connector.connections", Provenance { module: crate::MODULE, source: file!(), line: line!() }, &Route { company_scope: bilibi_module_registry::contributions::CompanyScope::Tenant, method: Method::Get, path: crate::CONNECTIONS_PATH, service: PAGE_ID, operation: "connections", access: Access::Capability(VIEW), framed: true }) }
 inventory::submit! { Contribution::new(PAGE_WRITES, PAGE_ID, Provenance { module: crate::MODULE, source: file!(), line: line!() }, &PageWrites { service: PAGE_ID, contracts: &[], pending: Pending::Events { events: WRITES, reason: "Bilimbi connection facade writes; reviewed operation contracts are a separate port slice." } }) }
 pub(crate) fn pages_service(
     services: &Services,
@@ -186,7 +186,7 @@ impl State {
     async fn refresh(&mut self, scope: &Scope) -> Result<()> {
         let client = self.pages.db.get().await.map_err(Error::from)?;
         let companies = bilibi_company::Directory
-            .selectable(&**client, scope, VIEW)
+            .reachable(&**client, scope)
             .await?;
         let companies: Vec<_> = companies.into_iter().filter(|c| !c.archived).collect();
         let previous = self.company;

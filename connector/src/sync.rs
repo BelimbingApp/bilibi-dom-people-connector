@@ -39,7 +39,10 @@ struct Checkpoint {
     #[serde(with = "sync_types::instant")]
     as_of_at: Timestamp,
 }
-async fn checkpoint(client: &impl GenericClient, c: &Connection) -> Result<Option<Checkpoint>> {
+async fn checkpoint(
+    client: &(impl GenericClient + Sync),
+    c: &Connection,
+) -> Result<Option<Checkpoint>> {
     store::rows(client, Table::Checkpoint, c)
         .await?
         .into_iter()
@@ -538,7 +541,7 @@ impl Connector {
 }
 // Migration 001's updated_at has whole-second precision. PostgreSQL's row
 // version also catches disable/re-enable or remap cycles within that second.
-async fn connection_stamp(client: &impl GenericClient, c: &Connection) -> Result<String> {
+async fn connection_stamp(client: &(impl GenericClient + Sync), c: &Connection) -> Result<String> {
     Ok(client
         .query_one(
             "SELECT xmin::text FROM people_connector_connections WHERE tenant_id=$1 AND id=$2",
@@ -651,7 +654,7 @@ async fn read_pages(
                     resume: page.resume_cursor,
                     snapshot,
                     pages,
-                })
+                });
             }
             Some(cursor) => {
                 if seen.contains(&Some(cursor.clone())) {
@@ -779,7 +782,7 @@ async fn resolve(tx: &mut MutationTransaction<'_>, raw: Value) -> Result<()> {
     Ok(())
 }
 async fn issue_row(
-    client: &impl GenericClient,
+    client: &(impl GenericClient + Sync),
     c: &Connection,
     key: &str,
 ) -> Result<Option<Value>> {
