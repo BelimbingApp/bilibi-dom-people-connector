@@ -33,7 +33,7 @@ impl Policy {
     }
 }
 
-pub(crate) async fn policy(client: &impl GenericClient, c: &Connection) -> Result<Policy> {
+pub(crate) async fn policy(client: &(impl GenericClient + Sync), c: &Connection) -> Result<Policy> {
     let row = client.query_opt(
         "SELECT webhook_secret,webhook_enabled,webhook_max_skew_seconds FROM people_connector_connections WHERE tenant_id=$1 AND id=$2",
         &[&c.tenant_id,&c.id],
@@ -82,7 +82,7 @@ pub(crate) async fn clear(tx: &mut MutationTransaction<'_>, c: &Connection) -> R
 }
 
 pub(crate) async fn last_received(
-    client: &impl GenericClient,
+    client: &(impl GenericClient + Sync),
     c: &Connection,
 ) -> Result<Option<Timestamp>> {
     let row = client.query_opt(
@@ -98,7 +98,7 @@ pub(crate) async fn last_received(
 }
 
 pub(crate) async fn nonce_used(
-    client: &impl GenericClient,
+    client: &(impl GenericClient + Sync),
     c: &Connection,
     hash: &str,
 ) -> Result<bool> {
@@ -109,7 +109,7 @@ pub(crate) async fn nonce_used(
 }
 
 pub(crate) async fn delivery_body(
-    client: &impl GenericClient,
+    client: &(impl GenericClient + Sync),
     c: &Connection,
     hash: &str,
 ) -> Result<Option<String>> {

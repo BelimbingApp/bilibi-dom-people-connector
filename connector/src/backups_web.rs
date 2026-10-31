@@ -31,7 +31,7 @@ macro_rules! provenance {
         }
     };
 }
-inventory::submit! {Contribution::new(ROUTES,"people_connector/connector.backups",provenance!(),&Route{method:Method::Get,path:PATH,service:PAGE_ID,operation:"backups",access:Access::Capability(MANAGE),framed:true})}
+inventory::submit! {Contribution::new(ROUTES,"people_connector/connector.backups",provenance!(),&Route{ company_scope: bilibi_module_registry::contributions::CompanyScope::Tenant,method:Method::Get,path:PATH,service:PAGE_ID,operation:"backups",access:Access::Capability(MANAGE),framed:true})}
 inventory::submit! {Contribution::new(PAGE_WRITES,PAGE_ID,provenance!(),&PageWrites{service:PAGE_ID,contracts:&[],pending:Pending::Events{events:&["save_policy","backup","preview","request_restore","restore","recover","purge","retry_purge"],reason:"Bilimbi backup facade writes; operation contracts are a separate port slice."}})}
 pub(crate) fn pages_service(
     services: &Services,
@@ -133,7 +133,7 @@ impl State {
     async fn select(&mut self, scope: &Scope, query: &HashMap<String, String>) -> Result<()> {
         let client = self.pages.db.get().await.map_err(Error::from)?;
         self.companies = bilibi_company::Directory
-            .selectable(&**client, scope, MANAGE)
+            .reachable(&**client, scope)
             .await?;
         self.companies.retain(|c| !c.archived);
         self.company = if query.contains_key("company_id") {
@@ -657,7 +657,15 @@ impl State {
                 .unwrap_or("this company")
         );
         let dialog = if self.confirming && self.preview.is_some() {
-            render(ConfirmDialog{id:"people-backups-confirm",consequence:&consequence,detail:"Configuration, checkpoint and directory records will be restored to the reviewed backup. Credentials and webhook secrets will be cleared; webhook intake will be disabled. This replaces current connector state.",confirm:"Restore",working:"Restoring…",confirm_event:"restore",cancel_event:"cancel_restore"})?
+            render(ConfirmDialog {
+                id: "people-backups-confirm",
+                consequence: &consequence,
+                detail: "Configuration, checkpoint and directory records will be restored to the reviewed backup. Credentials and webhook secrets will be cleared; webhook intake will be disabled. This replaces current connector state.",
+                confirm: "Restore",
+                working: "Restoring…",
+                confirm_event: "restore",
+                cancel_event: "cancel_restore",
+            })?
         } else {
             Html::EMPTY
         };

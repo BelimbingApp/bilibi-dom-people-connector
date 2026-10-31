@@ -45,7 +45,7 @@ macro_rules! provenance {
         }
     };
 }
-inventory::submit! {Contribution::new(ROUTES,"people_connector/connector.files",provenance!(),&Route{method:Method::Get,path:"/integrations/people/files",service:PAGE_SERVICE,operation:"files",access:Access::Capability(MANAGE),framed:true})}
+inventory::submit! {Contribution::new(ROUTES,"people_connector/connector.files",provenance!(),&Route{ company_scope: bilibi_module_registry::contributions::CompanyScope::Tenant,method:Method::Get,path:"/integrations/people/files",service:PAGE_SERVICE,operation:"files",access:Access::Capability(MANAGE),framed:true})}
 inventory::submit! {Contribution::new(DOWNLOADS,"people_connector/connector.file_download",provenance!(),&DownloadRoute{path:"/integrations/people/files/{company_id}/{id}",service:DOWNLOAD_SERVICE,operation:"download",access:Access::Capability(MANAGE)})}
 inventory::submit! {Contribution::new(PAGE_WRITES,PAGE_SERVICE,provenance!(),&PageWrites{service:PAGE_SERVICE,contracts:&[],pending:Pending::Events{events:&["save_policy","import","export","purge"],reason:"Bilimbi file exchange facade writes; operation contracts are a separate port slice."}})}
 #[derive(Clone)]
@@ -114,7 +114,7 @@ impl State {
     async fn select(&mut self, scope: &Scope, query: &HashMap<String, String>) -> Result<()> {
         let client = self.pages.db.get().await.map_err(Error::from)?;
         self.companies = bilibi_company::Directory
-            .selectable(&**client, scope, MANAGE)
+            .reachable(&**client, scope)
             .await?;
         // An explicit unavailable company must never select a different write target.
         self.company = if query.contains_key("company_id") {

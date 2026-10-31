@@ -39,7 +39,7 @@ macro_rules! provenance {
         }
     };
 }
-inventory::submit! {Contribution::new(ROUTES,"people_connector/connector.operations",provenance!(),&Route{method:Method::Get,path:"/integrations/people/operations",service:PAGE_ID,operation:"operations",access:Access::Capability(MANAGE),framed:true})}
+inventory::submit! {Contribution::new(ROUTES,"people_connector/connector.operations",provenance!(),&Route{ company_scope: bilibi_module_registry::contributions::CompanyScope::Tenant,method:Method::Get,path:"/integrations/people/operations",service:PAGE_ID,operation:"operations",access:Access::Capability(MANAGE),framed:true})}
 inventory::submit! {Contribution::new(PAGE_WRITES,PAGE_ID,provenance!(),&PageWrites{service:PAGE_ID,contracts:&[],pending:Pending::Events{events:&["run_doctor","save_policy","purge"],reason:"Bilimbi doctor and retention facade writes; operation contracts are a separate port slice."}})}
 #[derive(Clone)]
 struct Pages {
@@ -108,7 +108,7 @@ impl State {
     async fn select(&mut self, scope: &Scope, query: &HashMap<String, String>) -> Result<()> {
         let client = self.pages.db.get().await.map_err(Error::from)?;
         self.companies = bilibi_company::Directory
-            .selectable(&**client, scope, MANAGE)
+            .reachable(&**client, scope)
             .await?;
         self.company = if query.contains_key("company_id") {
             params::positive_id(query.get("company_id").map(String::as_str))
@@ -476,7 +476,22 @@ impl State {
             content = notice;
         }
         let dialog = if self.pending_purge {
-            render(ConfirmDialog{id:"people-retention-confirm",consequence:&format!("Eligible connector records for {} will be deleted.",self.companies.iter().find(|c|Some(c.id.get())==self.company).map(|c|c.name.as_str()).unwrap_or("this company")),detail:"This cannot be undone. Each record is audited. Checkpoints, directory projections, reconciliation issues and audit history remain.",confirm:"Purge",working:"Purging…",confirm_event:"purge",cancel_event:"cancel_purge"})?
+            render(ConfirmDialog {
+                id: "people-retention-confirm",
+                consequence: &format!(
+                    "Eligible connector records for {} will be deleted.",
+                    self.companies
+                        .iter()
+                        .find(|c| Some(c.id.get()) == self.company)
+                        .map(|c| c.name.as_str())
+                        .unwrap_or("this company")
+                ),
+                detail: "This cannot be undone. Each record is audited. Checkpoints, directory projections, reconciliation issues and audit history remain.",
+                confirm: "Purge",
+                working: "Purging…",
+                confirm_event: "purge",
+                cancel_event: "cancel_purge",
+            })?
         } else {
             Html::EMPTY
         };

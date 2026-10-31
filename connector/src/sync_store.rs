@@ -31,11 +31,19 @@ impl Table {
     }
     fn columns(self) -> &'static str {
         match self {
-        Self::Checkpoint => "tenant_id,connection_id,version,resume_cursor,as_of_at,bootstrap_required",
-        Self::Run => "tenant_id,connection_id,platform_company_id,provider_id,idempotency_key,pass,state,reason,checkpoint_version,as_of_at,applied,unchanged,superseded,deactivated,refused,started_at,finished_at",
-        Self::Record => "tenant_id,connection_id,kind,source_id,stable_id,workforce_company_id,active,name,code,email,supervisor_stable_id,parent_stable_id,version,vacant,assignments_incomplete,assignments,content_hash,observed_at,deactivated_at",
-        Self::Issue => "tenant_id,connection_id,issue_key,kind,reason,severity,record_kind,stable_id,status,occurrences,first_seen_at,last_seen_at,resolved_at",
-    }
+            Self::Checkpoint => {
+                "tenant_id,connection_id,version,resume_cursor,as_of_at,bootstrap_required"
+            }
+            Self::Run => {
+                "tenant_id,connection_id,platform_company_id,provider_id,idempotency_key,pass,state,reason,checkpoint_version,as_of_at,applied,unchanged,superseded,deactivated,refused,started_at,finished_at"
+            }
+            Self::Record => {
+                "tenant_id,connection_id,kind,source_id,stable_id,workforce_company_id,active,name,code,email,supervisor_stable_id,parent_stable_id,version,vacant,assignments_incomplete,assignments,content_hash,observed_at,deactivated_at"
+            }
+            Self::Issue => {
+                "tenant_id,connection_id,issue_key,kind,reason,severity,record_kind,stable_id,status,occurrences,first_seen_at,last_seen_at,resolved_at"
+            }
+        }
     }
 }
 pub(crate) fn decode<T: DeserializeOwned>(v: Value) -> Result<T> {
@@ -45,7 +53,7 @@ pub(crate) fn encode<T: Serialize>(v: &T) -> Result<Value> {
     serde_json::to_value(v).map_err(|_| ConnectorError::Failed(Error::Internal))
 }
 pub(crate) async fn rows(
-    client: &impl GenericClient,
+    client: &(impl GenericClient + Sync),
     table: Table,
     c: &Connection,
 ) -> Result<Vec<Value>> {

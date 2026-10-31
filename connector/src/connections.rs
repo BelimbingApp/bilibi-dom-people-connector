@@ -65,7 +65,7 @@ pub(crate) struct Mapping {
 /// The tenant's connection for a platform company, locked `FOR UPDATE` when
 /// the caller is about to change it.
 pub(crate) async fn find(
-    client: &impl GenericClient,
+    client: &(impl GenericClient + Sync),
     tenant: i64,
     platform_company_id: i64,
     lock: bool,
@@ -87,7 +87,7 @@ pub(crate) async fn find(
 /// workforce company identity (the refusal decided before an insert or
 /// remap, so the unique constraint only catches a race).
 pub(crate) async fn workforce_company_taken(
-    client: &impl GenericClient,
+    client: &(impl GenericClient + Sync),
     tenant: i64,
     platform_company_id: i64,
     workforce_source_id: &str,
