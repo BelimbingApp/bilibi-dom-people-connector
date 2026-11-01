@@ -2,7 +2,7 @@
 
 `POST /webhooks/people-native` receives signed directory-change notifications and records their receipt for an operator to review. An operator still uses **Synchronise now** to refresh the directory.
 
-The parity reference is Bilimbi's [`connector/docs/webhooks.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/dc6e1cbeca39be8eb9211a333088fa726c09b603/connector/docs/webhooks.md) and [`Connector.Webhooks`](https://github.com/BelimbingApp/b-dom-people-connector/blob/dc6e1cbeca39be8eb9211a333088fa726c09b603/connector/lib/connector/webhooks.ex).
+The parity reference is Bilimbi's [`connector/docs/webhooks.md`](https://github.com/BelimbingProject/b-dom-people-connector/blob/dc6e1cbeca39be8eb9211a333088fa726c09b603/connector/docs/webhooks.md) and [`Connector.Webhooks`](https://github.com/BelimbingProject/b-dom-people-connector/blob/dc6e1cbeca39be8eb9211a333088fa726c09b603/connector/lib/connector/webhooks.ex).
 
 ## Signed request contract
 

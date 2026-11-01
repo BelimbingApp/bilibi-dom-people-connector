@@ -1,12 +1,12 @@
 # bilibi-dom-people-connector
 
-People connector Domain for [Bilibi](https://github.com/BelimbingApp/bilibi):
+People connector Domain for [Bilibi](https://github.com/BelimbingProject/bilibi):
 how a company's People workforce directory is connected to a provider, kept
 in step and reviewed, ported with UI parity from Bilimbi's
-[b-dom-people-connector](https://github.com/BelimbingApp/b-dom-people-connector).
+[b-dom-people-connector](https://github.com/BelimbingProject/b-dom-people-connector).
 It is one optional, independently versioned repository that an adopter
 mounts into a Bilibi checkout beside
-[bilibi-dom-people](https://github.com/BelimbingApp/bilibi-dom-people); it
+[bilibi-dom-people](https://github.com/BelimbingProject/bilibi-dom-people); it
 does not build on its own.
 
 | Module | Descriptor ID | Crate | Owns |
@@ -38,8 +38,8 @@ Clone People and this repository into a Bilibi checkout (real nested
 checkouts, never symlinks) and work from the Bilibi root:
 
 ```sh
-git clone https://github.com/BelimbingApp/bilibi-dom-people.git apps/domains/people
-git clone https://github.com/BelimbingApp/bilibi-dom-people-connector.git apps/domains/people_connector
+git clone https://github.com/BelimbingProject/bilibi-dom-people.git apps/domains/people
+git clone https://github.com/BelimbingProject/bilibi-dom-people-connector.git apps/domains/people_connector
 python3 scripts/discover-modules.py
 cargo run -p bilibi-web -- migrate
 ```

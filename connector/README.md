@@ -1,6 +1,6 @@
 # Connector
 
-`people_connector/connector` owns provider connections, directory synchronisation into Connector-owned projections, signed inbound notifications, private directory files, connection health and record retention, and backup and recovery. This README is the owner contract; the Bilimbi source it ports is [`connector/docs/README.md`](https://github.com/BelimbingApp/b-dom-people-connector/blob/main/connector/docs/README.md).
+`people_connector/connector` owns provider connections, directory synchronisation into Connector-owned projections, signed inbound notifications, private directory files, connection health and record retention, and backup and recovery. This README is the owner contract; the Bilimbi source it ports is [`connector/docs/README.md`](https://github.com/BelimbingProject/b-dom-people-connector/blob/main/connector/docs/README.md).
 
 These features are available through `Connector`. The People connections page is at `/integrations/people/connections`, Files at `/integrations/people/files`, Operations at `/integrations/people/operations` ([health and retention](operations.md)), and Backups at `/integrations/people/backups`.
 
