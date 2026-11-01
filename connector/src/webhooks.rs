@@ -247,6 +247,7 @@ impl WebhookHandler for Connector {
                     id: "0".into(),
                 },
                 impersonator: None,
+                actor_role: None,
                 action: "people-connector.webhook.receipt".into(),
                 trace_id: uuid::Uuid::new_v4().to_string(),
                 agent_self_report: None,
