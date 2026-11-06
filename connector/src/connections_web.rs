@@ -16,10 +16,9 @@ use bilibi_ui::{
         LiveBody, LiveFuture, LiveInput, LiveRequest, LiveState, MountFuture, Page, PageBody,
         PageFuture, PageRequest, PageService,
     },
-    params, Badge, BadgeKind, BuiltinColumn, Button, Cell, ColumnsOutcome, ConfirmDialog,
-    EmptyState, Fact, Facts, Field, FlashMap, FlexRow, FlexTable, Form, Html, InputKind, Instant,
-    ListColumns, ListSpec, ListState, PageCounts, Pagination, SecretInput, SortDir, StatusKind,
-    TableEmpty,
+    params, BadgeKind, BuiltinColumn, Button, Cell, ColumnsOutcome, ConfirmDialog, EmptyState,
+    Fact, Facts, Field, FlashMap, FlexRow, FlexTable, Form, Html, InputKind, Instant, ListColumns,
+    ListSpec, ListState, PageCounts, Pagination, SecretInput, SortDir, StatusKind, TableEmpty,
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -807,14 +806,14 @@ impl State {
             Fact {
                 title: "State",
                 id: "people-connections-state",
-                value: badge(
+                value: bilibi_ui::status_badge(
                     if status.state == ConnectionState::Enabled {
                         BadgeKind::Success
                     } else {
                         BadgeKind::Neutral
                     },
                     status.state.label(),
-                )?,
+                ),
             },
             Fact {
                 title: "Provider",
@@ -862,14 +861,14 @@ impl State {
                     row = row
                         .slot(
                             "state",
-                            badge(
+                            bilibi_ui::status_badge(
                                 if status.state == ConnectionState::Enabled {
                                     BadgeKind::Success
                                 } else {
                                     BadgeKind::Neutral
                                 },
                                 status.state.label(),
-                            )?,
+                            ),
                         )
                         .cell("provider", Cell::text(self.provider_label(status)))
                         .cell(
@@ -994,7 +993,7 @@ impl State {
         let last = match &summary.last_run {
             None => Html::text("None yet"),
             Some(run) => {
-                let mut value = badge(
+                let mut value = bilibi_ui::status_badge(
                     match run.state {
                         crate::RunState::Succeeded => BadgeKind::Success,
                         crate::RunState::Running => BadgeKind::Neutral,
@@ -1002,7 +1001,7 @@ impl State {
                         _ => BadgeKind::Danger,
                     },
                     run.state.label(),
-                )?;
+                );
                 value.push(&Html::text(&format!(
                     " {} · {} applied · {} unchanged · {} deactivated · {} refused",
                     if run.pass == crate::RunPass::Bootstrap {
@@ -1024,7 +1023,7 @@ impl State {
                 Fact {
                     title: "Freshness",
                     id: "people-connections-freshness",
-                    value: badge(kind, label)?,
+                    value: bilibi_ui::status_badge(kind, label),
                 },
                 Fact {
                     title: "Data as of",
@@ -1072,7 +1071,7 @@ impl State {
                 (Some(kind), _) => kind.clone(),
                 _ => "—".into(),
             };
-            let mut message = badge(
+            let mut message = bilibi_ui::status_badge(
                 if issue.severity == "error" {
                     BadgeKind::Danger
                 } else {
@@ -1083,7 +1082,7 @@ impl State {
                 } else {
                     "Warning"
                 },
-            )?;
+            );
             message.push(&Html::text(&format!(" {}", issue.message())));
             let mut row = FlexRow::new(format!("people-connections-issue-{}", issue.id))
                 .slot("issue", message)
@@ -1279,9 +1278,6 @@ impl State {
         };
         render(WebhookView { facts, policy })
     }
-}
-fn badge(kind: BadgeKind, label: &str) -> Result<Html> {
-    render(Badge::status(kind, label))
 }
 fn form(id: &str, event: &str, body: Html, button_id: &str, label: &str) -> Result<Html> {
     render(Form {
